@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa 3D - Toon Shading</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%235db85d'/><circle cx='16' cy='16' r='8' fill='%232d5c2d'/></svg>">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+   <div id="canvas-container">
+        <div id="noise-overlay"></div>
+    </div>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.181.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.181.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="./src/rendering/scene.js"></script>
+</body>
+</html>
