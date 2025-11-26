@@ -178,7 +178,11 @@ function setupInteractionOverlay() {
         });
         const content = createElement('div', 'dialogue-content', inner);
         const header = createElement('div', 'dialogue-character-header', content);
-        const portrait = createElement('div', 'dialogue-portrait', header);
+        const portrait = createElement('div', 'dialogue-portrait portrait-empty', header);
+        portrait.id = 'interaction-portrait';
+        const portraitImage = createElement('img', 'dialogue-portrait-image hidden', portrait);
+        portraitImage.id = 'interaction-portrait-image';
+        portraitImage.alt = '';
         createElement('div', 'portrait-highlight', portrait);
         const speakerLabel = createElement('div', 'dialogue-character-name', header);
         speakerLabel.id = 'interaction-speaker';
@@ -187,16 +191,14 @@ function setupInteractionOverlay() {
         paragraph.id = 'interaction-message-text';
         const continuePrompt = createElement('div', 'dialogue-continue hidden', content);
         continuePrompt.id = 'interaction-continue';
-        const continueLabel = createElement('span', 'continue-label', continuePrompt);
-        continueLabel.textContent = 'PRESIONA';
-        const continueButton = createElement('span', 'continue-button', continuePrompt);
-        continueButton.textContent = '↵';
         createElement('span', 'continue-arrow', continuePrompt);
     }
 
     const messageText = document.getElementById('interaction-message-text');
     const speakerText = document.getElementById('interaction-speaker');
     const continuePrompt = document.getElementById('interaction-continue');
+    const portraitElement = document.getElementById('interaction-portrait');
+    const portraitImageElement = document.getElementById('interaction-portrait-image');
 
     promptPanel.classList.add('hidden');
     messagePanel.classList.add('hidden');
@@ -217,6 +219,55 @@ function setupInteractionOverlay() {
         continuePrompt.classList.toggle('hidden', !visible);
     };
 
+    const resolvePortraitSrc = (src = '') => {
+        if (!src) return '';
+        if (/^https?:\/\//i.test(src) || src.startsWith('data:') || src.startsWith('/')) return src;
+        try {
+            return new URL(src, window.location.href).toString();
+        } catch (err) {
+            return src;
+        }
+    };
+
+    const setPortraitImage = (src = '') => {
+        if (!portraitElement || !portraitImageElement) return;
+
+        const clearPortrait = () => {
+            portraitElement.classList.add('portrait-empty');
+            portraitImageElement.src = '';
+            portraitImageElement.classList.add('hidden');
+            portraitImageElement.removeAttribute('data-tried-fallback');
+        };
+
+        if (!src) {
+            clearPortrait();
+            return;
+        }
+
+        const normalizedSrc = resolvePortraitSrc(src);
+        const needsFallbackCandidate = !/^https?:\/\/|^data:|^\//i.test(src);
+        const fallbackSrc = needsFallbackCandidate ? resolvePortraitSrc(`public/${src}`) : '';
+
+        portraitImageElement.onload = () => {
+            portraitElement.classList.remove('portrait-empty');
+            portraitImageElement.classList.remove('hidden');
+        };
+        portraitImageElement.onerror = () => {
+            const triedFallback = portraitImageElement.getAttribute('data-tried-fallback') === 'true';
+            if (!triedFallback && fallbackSrc && fallbackSrc !== portraitImageElement.src) {
+                portraitImageElement.setAttribute('data-tried-fallback', 'true');
+                portraitImageElement.src = fallbackSrc;
+                return;
+            }
+            clearPortrait();
+        };
+
+        portraitElement.classList.add('portrait-empty');
+        portraitImageElement.classList.add('hidden');
+        portraitImageElement.removeAttribute('data-tried-fallback');
+        portraitImageElement.src = normalizedSrc;
+    };
+
     const api = {
         showPrompt(text = '') {
             promptText.textContent = text;
@@ -225,8 +276,9 @@ function setupInteractionOverlay() {
         hidePrompt() {
             promptPanel.classList.add('hidden');
         },
-        showMessage(text = '', speaker = '') {
+        showMessage(text = '', speaker = '', portrait = '') {
             setSpeaker(speaker);
+            setPortraitImage(portrait);
             messageText.textContent = text;
             messagePanel.classList.remove('hidden');
             setContinueVisible(true);
@@ -237,6 +289,7 @@ function setupInteractionOverlay() {
             messageIndex = 0;
             setSpeaker('');
             setContinueVisible(false);
+            setPortraitImage('');
         },
         hideAll() {
             promptPanel.classList.add('hidden');
@@ -245,15 +298,17 @@ function setupInteractionOverlay() {
             messageIndex = 0;
             setSpeaker('');
             setContinueVisible(false);
+            setPortraitImage('');
         },
         isMessageVisible() {
             return !messagePanel.classList.contains('hidden');
         },
-        startMessageSequence(messages = [], speaker = '') {
+        startMessageSequence(messages = [], speaker = '', portrait = '') {
             if (!Array.isArray(messages) || messages.length === 0) return;
             activeMessages = messages;
             messageIndex = 0;
             setSpeaker(speaker);
+            setPortraitImage(portrait);
             messageText.textContent = messages[0];
             messagePanel.classList.remove('hidden');
             setContinueVisible(true);
@@ -297,11 +352,24 @@ function updateInteractionIndicators({
     }
 
     if (nearest && isPlayerFacingInteractable(player, nearest.position, tmpVector, tmpForward)) {
+        if (nearest.autoTrigger) {
+            if (nearest.messages?.length) {
+                if (!nearest.__autoShown) {
+                    overlay.startMessageSequence(nearest.messages, nearest.speaker, nearest.portrait);
+                    nearest.__autoShown = true;
+                }
+            } else {
+                nearest.onInteract?.();
+            }
+            overlay.hidePrompt();
+            return { interactable: nearest };
+        }
+
         overlay.showPrompt(nearest.prompt);
 
         if (input.consumePressed('enter') || input.consumePressed('return')) {
             if (nearest.messages?.length) {
-                overlay.startMessageSequence(nearest.messages, nearest.speaker);
+                overlay.startMessageSequence(nearest.messages, nearest.speaker, nearest.portrait);
                 overlay.hidePrompt();
             }
             nearest.onInteract?.();

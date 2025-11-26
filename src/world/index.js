@@ -15,6 +15,20 @@ const MIX_TEXTURE = loadMixTexture();
 const MIX_MATERIALS = createMixMaterials(MIX_TEXTURE);
 const PATH_TILE_TYPES = new Set([1, 10]);
 const HOUSE_TILE_TYPES = new Set([5, 6, 7]);
+const BLOCKING_TILE_TYPES = new Set([3, 4, 5, 6, 7, 9, 10, 11]);
+const DEFAULT_ENTRY_SIGN_OFFSET = new THREE.Vector3(0.4, 0, TILE_SIZE + 0.05);
+const HOUSE_ENTRY_SIGN_OFFSETS = Object.freeze({
+    green: new THREE.Vector3(2.5, 0, TILE_SIZE + 0.05),
+    blue: new THREE.Vector3(0.35 + TILE_SIZE, 0, TILE_SIZE + 0.05),
+    yellow1: new THREE.Vector3(0.5 + 0.7, 0, TILE_SIZE + 0.05),
+    yellow2: new THREE.Vector3(0.45, 0, TILE_SIZE + 0.05)
+});
+const HOUSE_DIALOGUE_KEYS = Object.freeze({
+    green: 'houseGreen',
+    blue: 'houseBlue',
+    yellow1: 'houseYellow1',
+    yellow2: 'houseYellow2'
+});
 const PATH_TEXTURE = createPathTexture();
 const PATH_TEXTURE_REPEAT = new THREE.Vector2(MAP_WIDTH / 2, MAP_HEIGHT / 2);
 const PATH_RESOLUTION = 10;
@@ -96,7 +110,9 @@ export function registerInteractable(entry = {}) {
         prompt = 'Presiona Enter para interactuar',
         message = [],
         onInteract = null,
-        speaker = ''
+        speaker = '',
+        portrait = '',
+        autoTrigger = false
     } = entry;
     if (!position) return;
     const safePosition = position.clone ? position.clone() : new THREE.Vector3(position.x ?? 0, position.y ?? 0, position.z ?? 0);
@@ -110,7 +126,10 @@ export function registerInteractable(entry = {}) {
         prompt,
         messages,
         onInteract,
-        speaker
+        speaker,
+        portrait,
+        autoTrigger,
+        __autoShown: false
     });
 }
 
@@ -302,10 +321,10 @@ function isGrassTileTouchingPath(x, y, tileMap) {
 
 export function createHouseRecords() {
     return {
-        green: { tiles: [] },
-        blue: { tiles: [] },
-        yellow1: { tiles: [] },
-        yellow2: { tiles: [] }
+        green: { tiles: [], type: 'green' },
+        blue: { tiles: [], type: 'blue' },
+        yellow1: { tiles: [], type: 'yellow1' },
+        yellow2: { tiles: [], type: 'yellow2' }
     };
 }
 
@@ -321,6 +340,7 @@ export function populateWorld(worldGroup, tileMap, houseRecords) {
         }
     }
     groundBatcher.commitTo(worldGroup);
+    registerHouseEntrySigns(houseRecords);
 }
 
 function createTile(gridX, gridY, type, houseRecords, tileMap, groundBatcher) {
@@ -406,16 +426,7 @@ function createTile(gridX, gridY, type, houseRecords, tileMap, groundBatcher) {
             break;
         case 10:
             addGround(0xdaa520);
-            const signPost = new THREE.Mesh(sharedGeometries.signPost, createToonMaterial(0x6b4423));
-            signPost.position.y = 0.35;
-            signPost.castShadow = true;
-            group.add(signPost);
-
-            const signBoard = new THREE.Mesh(sharedGeometries.signBoard, createToonMaterial(0x8b6914));
-            signBoard.position.y = 0.75;
-            signBoard.castShadow = true;
-            group.add(signBoard);
-
+            addSignDecoration(group);
             registerInteractable({
                 id: `sign-${gridX}-${gridY}`,
                 position: worldPosition,
@@ -425,21 +436,10 @@ function createTile(gridX, gridY, type, houseRecords, tileMap, groundBatcher) {
             break;
         case 11:
             addGrassGround(gridX, gridY, tileMap);
-            const chooseRockPlants = rockPlantPrototype && pseudoRandom2D(gridX + 281, gridY + 313) > 0.45;
-            if (chooseRockPlants) {
-                addRockPlantInstance(group, gridX, gridY);
-            } else {
-                addMailboxDecoration(group, gridX, gridY);
+            const placedRock = addRockPlantInstance(group, gridX, gridY);
+            if (!placedRock) {
+                addProceduralRock(group, gridX, gridY);
             }
-
-            registerInteractable({
-                id: `mailbox-${gridX}-${gridY}`,
-                position: worldPosition,
-                radius: 1.4,
-                prompt: 'Presiona Enter para revisar el buzón',
-                speaker: 'Buzón',
-                message: 'El buzón está repleto de cartas perfumadas. Quizá alguien espera tu respuesta.'
-            });
             break;
         default:
             addGround(0x5db85d);
@@ -541,6 +541,58 @@ function addGrassDetailIfNeeded(group, gridX, gridY, tileMap) {
         detail.scale.multiplyScalar(scale);
         group.add(detail);
     }
+}
+
+function addSignDecoration(targetGroup, offset = new THREE.Vector3()) {
+    const signPost = new THREE.Mesh(sharedGeometries.signPost, createToonMaterial(0x6b4423));
+    signPost.position.set(offset.x, 0.35 + offset.y, offset.z);
+    signPost.castShadow = true;
+    targetGroup.add(signPost);
+
+    const signBoard = new THREE.Mesh(sharedGeometries.signBoard, createToonMaterial(0x8b6914));
+    signBoard.position.set(offset.x, 0.75 + offset.y, offset.z);
+    signBoard.castShadow = true;
+    targetGroup.add(signBoard);
+}
+
+function registerHouseEntrySigns(houseRecords) {
+    Object.values(houseRecords).forEach((record) => {
+        const tiles = record?.tiles ?? [];
+        if (!tiles.length) return;
+        const entryTile = findEntranceTile(tiles);
+        if (!entryTile) return;
+        addHouseEntrySign(entryTile, record.type ?? entryTile.userData?.houseType ?? 'house');
+    });
+}
+
+function findEntranceTile(tiles) {
+    return tiles.reduce((best, group) => {
+        const gy = group.userData?.gridY ?? -Infinity;
+        if (!best) return group;
+        const bestGy = best.userData?.gridY ?? -Infinity;
+        if (gy > bestGy) return group;
+        if (gy === bestGy) {
+            const gx = group.userData?.gridX ?? 0;
+            const bestGx = best.userData?.gridX ?? 0;
+            return gx < bestGx ? group : best;
+        }
+        return best;
+    }, null);
+}
+
+function addHouseEntrySign(tileGroup, houseType) {
+    if (!tileGroup || tileGroup.userData?.entrySign) return;
+    const offsetTemplate = HOUSE_ENTRY_SIGN_OFFSETS[houseType] ?? DEFAULT_ENTRY_SIGN_OFFSET;
+    const offset = offsetTemplate.clone();
+    const position = tileGroup.position.clone().add(offset);
+    tileGroup.userData.entrySign = true;
+    const dialogue = INTERACTION_DIALOGUES[HOUSE_DIALOGUE_KEYS[houseType]] ?? INTERACTION_DIALOGUES.signWelcome;
+    registerInteractable({
+        id: `house-entry-${houseType}-${tileGroup.userData?.gridX}-${tileGroup.userData?.gridY}`,
+        position,
+        radius: TILE_SIZE,
+        ...dialogue
+    });
 }
 
 function addRockPlantInstance(group, gridX, gridY) {
