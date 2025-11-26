@@ -598,7 +598,16 @@ function addHouseEntrySign(tileGroup, houseType) {
         id: `house-entry-${houseType}-${tileGroup.userData?.gridX}-${tileGroup.userData?.gridY}`,
         position,
         radius: TILE_SIZE,
-        ...dialogue
+        ...dialogue,
+        onChoiceSelect: (choice, interactable) => {
+            if (choice.id === 'yes') {
+                // Get overlay from global context set by scene.js
+                const overlay = window.__interactionOverlay__;
+                if (overlay && overlay.loadWorld) {
+                    overlay.loadWorld(`interior-${houseType}`);
+                }
+            }
+        }
     });
 }
 
