@@ -647,10 +647,9 @@ function touchesHouseTile(x, y, tileMap) {
 }
 
 function addTreeModelInstance(group, variant, gridX, gridY) {
-    const useDefaultOnly = gridY >= SOUTH_PROTECTED_ROW;
-    const availableModels = useDefaultOnly
-        ? (defaultTreeModel ? [defaultTreeModel] : [])
-        : Array.from(treeModelLibrary.values());
+    const availableModels = treeModelLibrary.size > 0
+        ? Array.from(treeModelLibrary.values())
+        : (defaultTreeModel ? [defaultTreeModel] : []);
 
     const prototype = availableModels.length > 0
         ? availableModels[Math.floor(pseudoRandom2D(gridX + 13, gridY + 29) * availableModels.length)]

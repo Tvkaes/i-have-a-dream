@@ -30,6 +30,7 @@ export function updateInteractionIndicators({
     overlay,
     tmpVector,
     tmpForward,
+    tmpDirection,
     activeInteractable
 }) {
     // Filtrar interactables por el mundo actual
@@ -48,15 +49,15 @@ export function updateInteractionIndicators({
             tmpForward.y = 0;
             if (tmpForward.lengthSq() < 1e-5) return;
             tmpForward.normalize();
-            const direction = tmpVector.clone().sub(player.position);
-            direction.y = 0;
-            if (direction.lengthSq() < 1e-4) {
+            tmpDirection.copy(tmpVector).sub(player.position);
+            tmpDirection.y = 0;
+            if (tmpDirection.lengthSq() < 1e-4) {
                 closest = obj;
                 closestDistance = dist;
                 return;
             }
-            direction.normalize();
-            const alignment = tmpForward.dot(direction);
+            tmpDirection.normalize();
+            const alignment = tmpForward.dot(tmpDirection);
             if (alignment >= 0.35) {
                 closest = obj;
                 closestDistance = dist;
@@ -134,8 +135,11 @@ export function startRenderLoop({
     const culledTrees = new WeakMap();
     const tmpVector = new THREE.Vector3();
     const tmpForward = new THREE.Vector3();
+    const tmpDirection = new THREE.Vector3();
     let activeInteractable = null;
     let physicsIdleTimer = 0;
+    const treeCullInterval = 0.25;
+    let treeCullTimer = treeCullInterval;
 
     const loop = () => {
         const delta = clock.getDelta();
@@ -158,7 +162,11 @@ export function startRenderLoop({
             }
         }
         updateCamera(delta, camera, player, offset, cameraTarget, lookTarget);
-        cullTreesNearCamera(camera, getTreeInstances(), culledTrees);
+        treeCullTimer += delta;
+        if (treeCullTimer >= treeCullInterval) {
+            treeCullTimer = 0;
+            cullTreesNearCamera(camera, getTreeInstances(), culledTrees);
+        }
         const { interactable } = updateInteractionIndicators({
             player,
             camera,
@@ -166,6 +174,7 @@ export function startRenderLoop({
             overlay: interactionOverlay,
             tmpVector,
             tmpForward,
+            tmpDirection,
             activeInteractable
         });
         activeInteractable = interactable;
