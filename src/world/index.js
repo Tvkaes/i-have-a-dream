@@ -5,6 +5,7 @@ import { INTERACTION_DIALOGUES } from '../config/dialogues.js';
 import { createToonMaterial } from './materials.js';
 import { transitionTo } from './transitionService.js';
 import { loadCachedTexture } from '../rendering/assetCache.js';
+import { sharedGeometries } from '../shared/index.js';
 
 const HALF_WORLD_WIDTH = (MAP_WIDTH * TILE_SIZE) / 2;
 const HALF_WORLD_HEIGHT = (MAP_HEIGHT * TILE_SIZE) / 2;
