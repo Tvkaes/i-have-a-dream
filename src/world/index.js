@@ -114,7 +114,8 @@ export function registerInteractable(entry = {}) {
         portrait = '',
         autoTrigger = false,
         choices = null,
-        onChoiceSelect = null
+        onChoiceSelect = null,
+        worldId = 'exterior' // Mundo al que pertenece este interactable
     } = entry;
     if (!position) return;
     const safePosition = position.clone ? position.clone() : new THREE.Vector3(position.x ?? 0, position.y ?? 0, position.z ?? 0);
@@ -136,12 +137,14 @@ export function registerInteractable(entry = {}) {
             label: choice?.label ?? choice?.id ?? String(choice)
         })) : null,
         onChoiceSelect,
+        worldId, // Guardar worldId
         __autoShown: false
     });
 }
 
-export function getInteractables() {
-    return interactables;
+export function getInteractables(filterWorldId = null) {
+    if (!filterWorldId) return interactables;
+    return interactables.filter(obj => obj.worldId === filterWorldId);
 }
 
 export function clearInteractables() {
@@ -604,7 +607,10 @@ function addHouseEntrySign(tileGroup, houseType) {
                 // Get overlay from global context set by scene.js
                 const overlay = window.__interactionOverlay__;
                 if (overlay && overlay.loadWorld) {
-                    overlay.loadWorld(`interior-${houseType}`);
+                    // Capturar la posición del jugador ahora, no después
+                    const player = window.__player__;
+                    const returnPos = player ? player.position.clone() : null;
+                    overlay.loadWorld(`interior-${houseType}`, returnPos);
                 }
             }
         }

@@ -1,11 +1,20 @@
 import * as THREE from 'three';
 import { PLAYER_CONFIG, TILE_SIZE } from '../config/index.js';
-import { createToonMaterial } from './materials.js';
 import { registerInteractable } from './index.js';
+import { HOUSE_CONFIGS } from './houseConfigs.js';
+import {
+    createFloor,
+    createWalls,
+    createCeiling,
+    createFurniture,
+    createExitDoor
+} from './interiorComponents.js';
+import { enableOnlyWorldColliders, registerWorldBodies } from '../physics/index.js';
 
 const worlds = new Map();
 let currentWorldId = 'exterior';
 let transitionCallback = null;
+let returnPosition = null; // Guarda la posición desde donde se entró a un interior
 
 export function registerWorld(id, worldGroup, spawnPosition = null) {
     worlds.set(id, {
@@ -22,12 +31,25 @@ export function setTransitionCallback(callback) {
     transitionCallback = callback;
 }
 
-export function loadWorld(worldId, scene, player, onComplete = null) {
+export function loadWorld(worldId, scene, player, onComplete = null, returnPos = null, physics = null) {
     const targetWorld = worlds.get(worldId);
     if (!targetWorld) {
         console.warn(`Mundo "${worldId}" no encontrado`);
         return;
     }
+
+    const loadingScreen = window.__loadingScreen__;
+    loadingScreen?.show('Cambiando de escenario...');
+
+    // Guardar posición de retorno si se proporciona (entrando a un interior)
+    if (returnPos) {
+        returnPosition = returnPos.clone();
+    }
+
+    // Si estamos saliendo al exterior, usar la posición de retorno guardada
+    const spawnPos = (worldId === 'exterior' && returnPosition) 
+        ? returnPosition 
+        : targetWorld.spawnPosition;
 
     // Limpiar escena (solo grupos de mundo, no luces/cámara)
     const toRemove = [];
@@ -42,9 +64,26 @@ export function loadWorld(worldId, scene, player, onComplete = null) {
     targetWorld.group.userData.isWorldGroup = true;
     scene.add(targetWorld.group);
 
-    // Reposicionar jugador
-    player.position.copy(targetWorld.spawnPosition);
+    // Reposicionar jugador (tanto visual como física)
+    player.position.copy(spawnPos);
     player.rotation.y = 0;
+
+    // IMPORTANTE: Actualizar también el cuerpo de física para evitar que sobrescriba la posición
+    if (physics?.playerBody) {
+        physics.playerBody.setTranslation(
+            { x: spawnPos.x, y: 0, z: spawnPos.z },
+            true
+        );
+        physics.playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    }
+
+    // Activar solo los colliders del mundo actual
+    enableOnlyWorldColliders(physics, worldId);
+
+    // Limpiar returnPosition al volver al exterior
+    if (worldId === 'exterior') {
+        returnPosition = null;
+    }
 
     currentWorldId = worldId;
 
@@ -55,77 +94,103 @@ export function loadWorld(worldId, scene, player, onComplete = null) {
     if (onComplete) {
         onComplete();
     }
+
+    loadingScreen?.hide();
 }
 
-export function createHouseInterior(houseType) {
+
+export function createHouseInterior(houseType, physics = null) {
+    const config = HOUSE_CONFIGS[houseType] || HOUSE_CONFIGS.green;
     const group = new THREE.Group();
     group.name = `interior-${houseType}`;
 
-    // Suelo
-    const floorGeo = new THREE.PlaneGeometry(6, 6);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x8b6f47, roughness: 0.9 });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    group.add(floor);
+    const { roomSize, wallHeight, floorColor, wallColor, ceilingColor, furniture } = config;
 
-    // Paredes
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0xf5deb3 });
-    const wallThickness = 0.2;
-    const wallHeight = 4;
-    const roomSize = 6;
+    // Crear colliders para las paredes del interior
+    if (physics?.world && physics.rapier) {
+        const bodies = [];
+        const halfRoom = roomSize / 2;
+        const wallThickness = 0.5;
 
-    // Pared trasera
-    const backWall = new THREE.Mesh(
-        new THREE.BoxGeometry(roomSize, wallHeight, wallThickness),
-        wallMat
-    );
-    backWall.position.set(0, wallHeight / 2, -roomSize / 2);
-    backWall.receiveShadow = true;
-    group.add(backWall);
+        // Pared trasera (norte)
+        const backWall = physics.world.createRigidBody(
+            physics.rapier.RigidBodyDesc.fixed().setTranslation(0, 0, -halfRoom)
+        );
+        physics.world.createCollider(
+            physics.rapier.ColliderDesc.cuboid(halfRoom, wallHeight, wallThickness),
+            backWall
+        );
+        bodies.push(backWall);
 
-    // Pared izquierda
-    const leftWall = new THREE.Mesh(
-        new THREE.BoxGeometry(wallThickness, wallHeight, roomSize),
-        wallMat
-    );
-    leftWall.position.set(-roomSize / 2, wallHeight / 2, 0);
-    leftWall.receiveShadow = true;
-    group.add(leftWall);
+        // Pared izquierda (oeste)
+        const leftWall = physics.world.createRigidBody(
+            physics.rapier.RigidBodyDesc.fixed().setTranslation(-halfRoom, 0, 0)
+        );
+        physics.world.createCollider(
+            physics.rapier.ColliderDesc.cuboid(wallThickness, wallHeight, halfRoom),
+            leftWall
+        );
+        bodies.push(leftWall);
 
-    // Pared derecha
-    const rightWall = new THREE.Mesh(
-        new THREE.BoxGeometry(wallThickness, wallHeight, roomSize),
-        wallMat
-    );
-    rightWall.position.set(roomSize / 2, wallHeight / 2, 0);
-    rightWall.receiveShadow = true;
-    group.add(rightWall);
+        // Pared derecha (este)
+        const rightWall = physics.world.createRigidBody(
+            physics.rapier.RigidBodyDesc.fixed().setTranslation(halfRoom, 0, 0)
+        );
+        physics.world.createCollider(
+            physics.rapier.ColliderDesc.cuboid(wallThickness, wallHeight, halfRoom),
+            rightWall
+        );
+        bodies.push(rightWall);
 
-    // Techo
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), wallMat);
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.y = wallHeight;
-    ceiling.receiveShadow = true;
-    group.add(ceiling);
+        // Pared frontal con puerta (sur) - dos segmentos a los lados de la puerta
+        const doorWidth = 2;
+        const sideWidth = (roomSize - doorWidth) / 2 - wallThickness;
+        
+        const leftDoorWall = physics.world.createRigidBody(
+            physics.rapier.RigidBodyDesc.fixed().setTranslation(-halfRoom + sideWidth / 2, 0, halfRoom)
+        );
+        physics.world.createCollider(
+            physics.rapier.ColliderDesc.cuboid(sideWidth / 2, wallHeight, wallThickness),
+            leftDoorWall
+        );
+        bodies.push(leftDoorWall);
+
+        const rightDoorWall = physics.world.createRigidBody(
+            physics.rapier.RigidBodyDesc.fixed().setTranslation(halfRoom - sideWidth / 2, 0, halfRoom)
+        );
+        physics.world.createCollider(
+            physics.rapier.ColliderDesc.cuboid(sideWidth / 2, wallHeight, wallThickness),
+            rightDoorWall
+        );
+        bodies.push(rightDoorWall);
+
+        registerWorldBodies(physics, `interior-${houseType}`, bodies, { enabled: false });
+    }
+
+    // Agregar suelo
+    group.add(createFloor(roomSize, floorColor));
+
+    // Agregar paredes
+    createWalls(roomSize, wallHeight, wallColor).forEach(wall => group.add(wall));
+
+    // Agregar techo
+    group.add(createCeiling(roomSize, wallHeight, ceilingColor));
+
+    // Agregar muebles
+    createFurniture(furniture).forEach(item => group.add(item));
 
     // Puerta de salida
-    const doorGeo = new THREE.BoxGeometry(1.5, 2.5, 0.2);
-    const doorMat = createToonMaterial(0x5d4a3a);
-    const exitDoor = new THREE.Mesh(doorGeo, doorMat);
-    const doorZ = roomSize / 2 - 0.1;
-    exitDoor.position.set(0, 1.25, doorZ);
-    exitDoor.castShadow = true;
-    exitDoor.userData.isExitDoor = true;
+    const { door: exitDoor, doorZ } = createExitDoor(roomSize);
     group.add(exitDoor);
 
-    // Registrar interactable para salir
+    // Registrar interactable para salir (asociado a este interior específico)
     registerInteractable({
         id: `exit-door-${houseType}`,
         position: new THREE.Vector3(0, PLAYER_CONFIG.baseHeight, doorZ),
         radius: TILE_SIZE,
         prompt: 'Presiona Enter para salir',
         message: [],
+        worldId: `interior-${houseType}`, // Asociar al mundo interior
         onInteract: () => {
             const overlay = window.__interactionOverlay__;
             if (overlay && overlay.loadWorld) {
@@ -137,12 +202,15 @@ export function createHouseInterior(houseType) {
     return group;
 }
 
-export function setupHouseInteriors(scene) {
+export function setupHouseInteriors(scene, physics = null) {
     const interiors = ['green', 'blue', 'yellow1', 'yellow2'];
     
     interiors.forEach((houseType) => {
-        const interior = createHouseInterior(houseType);
-        const spawnPos = new THREE.Vector3(0, PLAYER_CONFIG.baseHeight, 2);
+        const interior = createHouseInterior(houseType, physics);
+        const config = HOUSE_CONFIGS[houseType] || HOUSE_CONFIGS.green;
+        // Calcular posición de spawn: un tile adelante de la puerta interior
+        const doorZ = config.roomSize / 2 - 0.1;
+        const spawnPos = new THREE.Vector3(0, PLAYER_CONFIG.baseHeight, doorZ - TILE_SIZE * 1.5);
         registerWorld(`interior-${houseType}`, interior, spawnPos);
     });
 }

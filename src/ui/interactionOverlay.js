@@ -4,7 +4,7 @@ function getCanvasContainer() {
     return document.getElementById('canvas-container') || document.body;
 }
 
-export function setupInteractionOverlay(getScene = () => null, getPlayer = () => null) {
+export function setupInteractionOverlay(getScene = () => null, getPlayer = () => null, getPhysics = () => null) {
     const container = getCanvasContainer();
     let overlay = document.getElementById('interaction-overlay');
     if (!overlay) {
@@ -306,14 +306,19 @@ export function setupInteractionOverlay(getScene = () => null, getPlayer = () =>
         shouldLockControls() {
             return api.isMessageVisible() || hasActiveChoices();
         },
-        loadWorld(worldId) {
+        loadWorld(worldId, returnPos = null) {
             const scene = getScene();
             const player = getPlayer();
+            const physics = getPhysics();
             if (scene && player) {
-                loadWorldScene(worldId, scene, player);
+                loadWorldScene(worldId, scene, player, null, returnPos, physics);
             }
         }
     };
 
     return api;
+}
+
+export function getInteractionOverlayInstance() {
+    return window.__interactionOverlay__;
 }

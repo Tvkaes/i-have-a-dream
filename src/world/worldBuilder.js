@@ -40,7 +40,8 @@ export function buildWorld(scene, gltfLoader, physics) {
         tileSize: TILE_SIZE,
         mapWidth: MAP_WIDTH,
         mapHeight: MAP_HEIGHT,
-        blockingTiles: BLOCKING_TILE_TYPES
+        blockingTiles: BLOCKING_TILE_TYPES,
+        worldId: 'exterior'
     });
     return worldGroup;
 }

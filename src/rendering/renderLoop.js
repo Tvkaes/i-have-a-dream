@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { updatePlayer, updateCamera } from '../player/index.js';
 import { getTreeInstances, getInteractables } from '../world/index.js';
+import { getCurrentWorldId } from '../world/scenes.js';
 
 const PHYSICS_IDLE_STEP_INTERVAL = 0.5;
 
@@ -31,7 +32,9 @@ export function updateInteractionIndicators({
     tmpForward,
     activeInteractable
 }) {
-    const interactables = getInteractables();
+    // Filtrar interactables por el mundo actual
+    const currentWorld = getCurrentWorldId();
+    const interactables = getInteractables(currentWorld);
     let closest = null;
     let closestDistance = Infinity;
 

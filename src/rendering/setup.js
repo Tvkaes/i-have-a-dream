@@ -116,16 +116,20 @@ export function setupPostProcess(renderer) {
     return { handPaintedFX, enablePostProcess, postProcessFallback, disposePostProcess };
 }
 
-export function setupLoadingCallbacks(loadingManager, enablePostProcess, postProcessFallback) {
+export function setupLoadingCallbacks(loadingManager, enablePostProcess, postProcessFallback, options = {}) {
     if (!loadingManager) return;
+
+    const { onStart = null, onComplete = null } = options;
 
     const finalizePostProcess = () => {
         enablePostProcess?.();
         if (postProcessFallback) {
             clearTimeout(postProcessFallback);
         }
+        onComplete?.();
     };
 
+    onStart?.();
     loadingManager.onLoad = finalizePostProcess;
     loadingManager.onError = finalizePostProcess;
 
