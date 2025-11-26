@@ -139,43 +139,83 @@ function setupInteractionOverlay() {
             panel.id = id;
             panel.className = className;
             overlay.appendChild(panel);
+        } else {
+            panel.className = className;
         }
         return panel;
     };
 
-    const promptPanel = ensurePanel('interaction-prompt');
+    const promptPanel = ensurePanel('interaction-prompt', 'interaction-panel prompt-panel hidden');
     let promptText = promptPanel.querySelector('p');
     if (!promptText) {
         promptText = document.createElement('p');
         promptPanel.appendChild(promptText);
     }
+
+    const createElement = (tag, className, parent) => {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        if (parent) parent.appendChild(element);
+        return element;
+    };
+
     let messagePanel = document.getElementById('interaction-message');
     if (!messagePanel) {
         messagePanel = document.createElement('div');
         messagePanel.id = 'interaction-message';
-        messagePanel.className = 'interaction-panel hidden';
-        const messageParagraph = document.createElement('p');
-        messageParagraph.id = 'interaction-message-text';
-        messagePanel.appendChild(messageParagraph);
-        const hint = document.createElement('span');
-        hint.className = 'interaction-hint';
-        hint.textContent = '';
-        messagePanel.appendChild(hint);
         overlay.appendChild(messagePanel);
     }
-
-    let messageText = document.getElementById('interaction-message-text');
-    if (!messageText) {
-        messageText = document.createElement('p');
-        messageText.id = 'interaction-message-text';
-        messagePanel.prepend(messageText);
+    messagePanel.className = 'interaction-panel dialogue-panel hidden';
+    if (!messagePanel.querySelector('.dialogue-content')) {
+        messagePanel.innerHTML = '';
+        const outerBorder = createElement('div', 'dialogue-outer-border', messagePanel);
+        const middleBorder = createElement('div', 'dialogue-middle-border', outerBorder);
+        const dialogueBox = createElement('div', 'dialogue-box', middleBorder);
+        const inner = createElement('div', 'dialogue-inner', dialogueBox);
+        createElement('div', 'dialogue-paint-texture', inner);
+        ['corner-tl', 'corner-tr', 'corner-bl', 'corner-br'].forEach((cornerClass) => {
+            createElement('div', `dialogue-corner ${cornerClass}`, inner);
+        });
+        const content = createElement('div', 'dialogue-content', inner);
+        const header = createElement('div', 'dialogue-character-header', content);
+        const portrait = createElement('div', 'dialogue-portrait', header);
+        createElement('div', 'portrait-highlight', portrait);
+        const speakerLabel = createElement('div', 'dialogue-character-name', header);
+        speakerLabel.id = 'interaction-speaker';
+        const textArea = createElement('div', 'dialogue-text-area', content);
+        const paragraph = createElement('p', '', textArea);
+        paragraph.id = 'interaction-message-text';
+        const continuePrompt = createElement('div', 'dialogue-continue hidden', content);
+        continuePrompt.id = 'interaction-continue';
+        const continueLabel = createElement('span', 'continue-label', continuePrompt);
+        continueLabel.textContent = 'PRESIONA';
+        const continueButton = createElement('span', 'continue-button', continuePrompt);
+        continueButton.textContent = '↵';
+        createElement('span', 'continue-arrow', continuePrompt);
     }
+
+    const messageText = document.getElementById('interaction-message-text');
+    const speakerText = document.getElementById('interaction-speaker');
+    const continuePrompt = document.getElementById('interaction-continue');
 
     promptPanel.classList.add('hidden');
     messagePanel.classList.add('hidden');
 
     let activeMessages = [];
     let messageIndex = 0;
+    let activeSpeaker = '';
+
+    const setSpeaker = (value = '') => {
+        activeSpeaker = value || '';
+        if (speakerText) {
+            speakerText.textContent = activeSpeaker;
+        }
+    };
+
+    const setContinueVisible = (visible) => {
+        if (!continuePrompt) return;
+        continuePrompt.classList.toggle('hidden', !visible);
+    };
 
     const api = {
         showPrompt(text = '') {
@@ -185,30 +225,38 @@ function setupInteractionOverlay() {
         hidePrompt() {
             promptPanel.classList.add('hidden');
         },
-        showMessage(text = '') {
+        showMessage(text = '', speaker = '') {
+            setSpeaker(speaker);
             messageText.textContent = text;
             messagePanel.classList.remove('hidden');
+            setContinueVisible(true);
         },
         hideMessage() {
             messagePanel.classList.add('hidden');
             activeMessages = [];
             messageIndex = 0;
+            setSpeaker('');
+            setContinueVisible(false);
         },
         hideAll() {
             promptPanel.classList.add('hidden');
             messagePanel.classList.add('hidden');
             activeMessages = [];
             messageIndex = 0;
+            setSpeaker('');
+            setContinueVisible(false);
         },
         isMessageVisible() {
             return !messagePanel.classList.contains('hidden');
         },
-        startMessageSequence(messages = []) {
+        startMessageSequence(messages = [], speaker = '') {
             if (!Array.isArray(messages) || messages.length === 0) return;
             activeMessages = messages;
             messageIndex = 0;
+            setSpeaker(speaker);
             messageText.textContent = messages[0];
             messagePanel.classList.remove('hidden');
+            setContinueVisible(true);
         },
         advanceMessage() {
             if (!activeMessages.length) {
@@ -253,7 +301,7 @@ function updateInteractionIndicators({
 
         if (input.consumePressed('enter') || input.consumePressed('return')) {
             if (nearest.messages?.length) {
-                overlay.startMessageSequence(nearest.messages);
+                overlay.startMessageSequence(nearest.messages, nearest.speaker);
                 overlay.hidePrompt();
             }
             nearest.onInteract?.();

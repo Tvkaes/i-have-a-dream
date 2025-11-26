@@ -95,7 +95,8 @@ export function registerInteractable(entry = {}) {
         radius = TILE_SIZE,
         prompt = 'Presiona Enter para interactuar',
         message = [],
-        onInteract = null
+        onInteract = null,
+        speaker = ''
     } = entry;
     if (!position) return;
     const safePosition = position.clone ? position.clone() : new THREE.Vector3(position.x ?? 0, position.y ?? 0, position.z ?? 0);
@@ -108,7 +109,8 @@ export function registerInteractable(entry = {}) {
         radius,
         prompt,
         messages,
-        onInteract
+        onInteract,
+        speaker
     });
 }
 
@@ -435,6 +437,7 @@ function createTile(gridX, gridY, type, houseRecords, tileMap, groundBatcher) {
                 position: worldPosition,
                 radius: 1.4,
                 prompt: 'Presiona Enter para revisar el buzón',
+                speaker: 'Buzón',
                 message: 'El buzón está repleto de cartas perfumadas. Quizá alguien espera tu respuesta.'
             });
             break;
