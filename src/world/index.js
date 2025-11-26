@@ -3,7 +3,7 @@ import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT } from '../config/index.js';
 import { GRASS_TEXTURE_PATH, MIX_TEXTURE_PATH } from '../config/assets.js';
 import { INTERACTION_DIALOGUES } from '../config/dialogues.js';
 import { createToonMaterial } from './materials.js';
-import { sharedGeometries } from '../shared/index.js';
+import { transitionTo } from './transitionService.js';
 import { loadCachedTexture } from '../rendering/assetCache.js';
 
 const HALF_WORLD_WIDTH = (MAP_WIDTH * TILE_SIZE) / 2;
@@ -598,21 +598,21 @@ function addHouseEntrySign(tileGroup, houseType) {
     tileGroup.userData.entrySign = true;
     const dialogue = INTERACTION_DIALOGUES[HOUSE_DIALOGUE_KEYS[houseType]] ?? INTERACTION_DIALOGUES.signWelcome;
     registerInteractable({
-        id: `house-entry-${houseType}-${tileGroup.userData?.gridX}-${tileGroup.userData?.gridY}`,
-        position,
-        radius: TILE_SIZE,
-        ...dialogue,
-        onChoiceSelect: (choice, interactable) => {
-            if (choice.id === 'yes') {
-                // Get overlay from global context set by scene.js
-                const overlay = window.__interactionOverlay__;
-                if (overlay && overlay.loadWorld) {
-                    // Capturar la posición del jugador ahora, no después
-                    const player = window.__player__;
-                    const returnPos = player ? player.position.clone() : null;
-                    overlay.loadWorld(`interior-${houseType}`, returnPos);
-                }
-            }
+        onChoiceSelect: (choice) => {
+            if (choice.id !== 'yes') return;
+            const scene = window.__scene__;
+            const player = window.__player__;
+            const physics = window.__physics__;
+            if (!scene || !player) return;
+            const returnPos = player.position.clone();
+            transitionTo({
+                worldId: `interior-${houseType}`,
+                scene,
+                player,
+                physics,
+                returnPos,
+                reason: 'enter-house'
+            });
         }
     });
 }

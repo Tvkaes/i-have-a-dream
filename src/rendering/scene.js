@@ -38,6 +38,7 @@ async function initScene() {
 
     const container = getCanvasContainer();
     const scene = createSceneInstance();
+    window.__scene__ = scene;
     const renderer = createRenderer(container);
     const loadingManager = new THREE.LoadingManager();
     const cameraContext = createCameraContext();
@@ -48,6 +49,7 @@ async function initScene() {
     addLights(scene);
 
     const physics = createPhysicsContext(RAPIER);
+    window.__physics__ = physics;
     const physicsManager = new PhysicsManager(physics);
     const gltfLoader = new GLTFLoader(loadingManager);
 
@@ -103,6 +105,8 @@ async function initScene() {
         disposePhysicsContext(physics);
         window.__player__ = null;
         window.__loadingScreen__ = null;
+        window.__scene__ = null;
+        window.__physics__ = null;
     };
 }
 

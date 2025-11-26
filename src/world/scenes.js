@@ -104,7 +104,15 @@ export function createHouseInterior(houseType, physics = null) {
     const group = new THREE.Group();
     group.name = `interior-${houseType}`;
 
-    const { roomSize, wallHeight, floorColor, wallColor, ceilingColor, furniture } = config;
+    const {
+        roomSize,
+        wallHeight,
+        floorColor,
+        wallColor,
+        ceilingColor,
+        furniture,
+        lighting
+    } = config;
 
     // Crear colliders para las paredes del interior
     if (physics?.world && physics.rapier) {
@@ -176,6 +184,21 @@ export function createHouseInterior(houseType, physics = null) {
     // Agregar techo
     group.add(createCeiling(roomSize, wallHeight, ceilingColor));
 
+    // Iluminación específica
+    if (lighting?.ambient) {
+        const ambient = new THREE.AmbientLight(lighting.ambient.color ?? 0xffffff, lighting.ambient.intensity ?? 0.4);
+        group.add(ambient);
+    }
+
+    if (lighting?.point) {
+        const pointConfig = lighting.point;
+        const pointLight = new THREE.PointLight(pointConfig.color ?? 0xffffff, pointConfig.intensity ?? 1, pointConfig.distance ?? 10);
+        const [px = 0, py = wallHeight - 0.5, pz = 0] = pointConfig.position ?? [];
+        pointLight.position.set(px, py, pz);
+        pointLight.castShadow = true;
+        group.add(pointLight);
+    }
+
     // Agregar muebles
     createFurniture(furniture).forEach(item => group.add(item));
 
@@ -210,7 +233,12 @@ export function setupHouseInteriors(scene, physics = null) {
         const config = HOUSE_CONFIGS[houseType] || HOUSE_CONFIGS.green;
         // Calcular posición de spawn: un tile adelante de la puerta interior
         const doorZ = config.roomSize / 2 - 0.1;
-        const spawnPos = new THREE.Vector3(0, PLAYER_CONFIG.baseHeight, doorZ - TILE_SIZE * 1.5);
+        const spawnOffset = config.spawnOffset ?? {};
+        const spawnPos = new THREE.Vector3(
+            spawnOffset.x ?? 0,
+            PLAYER_CONFIG.baseHeight,
+            spawnOffset.z ?? (doorZ - TILE_SIZE * 1.5)
+        );
         registerWorld(`interior-${houseType}`, interior, spawnPos);
     });
 }

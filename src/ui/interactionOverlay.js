@@ -1,4 +1,4 @@
-import { loadWorld as loadWorldScene } from '../world/scenes.js';
+import { transitionTo } from '../world/transitionService.js';
 
 function getCanvasContainer() {
     return document.getElementById('canvas-container') || document.body;
@@ -306,12 +306,12 @@ export function setupInteractionOverlay(getScene = () => null, getPlayer = () =>
         shouldLockControls() {
             return api.isMessageVisible() || hasActiveChoices();
         },
-        loadWorld(worldId, returnPos = null) {
+        loadWorld(worldId, returnPos = null, reason = 'interaction') {
             const scene = getScene();
             const player = getPlayer();
             const physics = getPhysics();
             if (scene && player) {
-                loadWorldScene(worldId, scene, player, null, returnPos, physics);
+                transitionTo({ worldId, scene, player, physics, returnPos, reason });
             }
         }
     };

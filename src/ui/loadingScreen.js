@@ -26,7 +26,8 @@ export function setupLoadingScreen() {
         screen.style.textTransform = 'uppercase';
         screen.style.zIndex = '9999';
         screen.style.transition = 'opacity 0.3s ease';
-        screen.classList.add('hidden');
+        screen.style.opacity = '0';
+        screen.style.display = 'none';
 
         const spinner = document.createElement('div');
         spinner.style.width = '48px';
@@ -59,8 +60,12 @@ export function setupLoadingScreen() {
             if (messageElement) {
                 messageElement.textContent = message;
             }
-            screen.style.opacity = '1';
-            screen.classList.remove('hidden');
+            if (screen.style.display !== 'flex') {
+                screen.style.display = 'flex';
+            }
+            requestAnimationFrame(() => {
+                screen.style.opacity = '1';
+            });
         },
         hide() {
             counter = Math.max(0, counter - 1);
@@ -68,7 +73,7 @@ export function setupLoadingScreen() {
                 screen.style.opacity = '0';
                 setTimeout(() => {
                     if (counter === 0) {
-                        screen.classList.add('hidden');
+                        screen.style.display = 'none';
                     }
                 }, 300);
             }
