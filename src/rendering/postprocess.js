@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
-export function createHandPaintedPostProcess(renderer) {
+export function createHandPaintedPostProcess(renderer, options = {}) {
+    const { resolutionScale = 0.85 } = options;
     const uniforms = {
         tDiffuse: { value: null },
         resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
@@ -115,7 +116,11 @@ export function createHandPaintedPostProcess(renderer) {
     const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
     postScene.add(quad);
 
-    const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+    const scaledWidth = Math.max(1, Math.floor(window.innerWidth * resolutionScale));
+    const scaledHeight = Math.max(1, Math.floor(window.innerHeight * resolutionScale));
+    uniforms.resolution.value.set(scaledWidth, scaledHeight);
+
+    const renderTarget = new THREE.WebGLRenderTarget(scaledWidth, scaledHeight, {
         minFilter: THREE.LinearFilter,
         magFilter: THREE.LinearFilter,
         format: THREE.RGBAFormat
@@ -128,8 +133,10 @@ export function createHandPaintedPostProcess(renderer) {
         camera: postCamera,
         enabled: false,
         setSize: (width, height) => {
-            renderTarget.setSize(width, height);
-            uniforms.resolution.value.set(width, height);
+            const newWidth = Math.max(1, Math.floor(width * resolutionScale));
+            const newHeight = Math.max(1, Math.floor(height * resolutionScale));
+            renderTarget.setSize(newWidth, newHeight);
+            uniforms.resolution.value.set(newWidth, newHeight);
         },
         render: (scene, camera, elapsed) => {
             if (!material || !renderTarget) return;

@@ -39,13 +39,24 @@ function setLayerRecursive(object, layer) {
 
 export function createInputHandler() {
     const activeKeys = new Set();
+    const pressedKeys = new Set();
+
+    const normalizeKey = (key = '') => {
+        if (typeof key !== 'string') return '';
+        return key.length === 1 ? key.toLowerCase() : key.toLowerCase();
+    };
 
     const handleKeyDown = (event) => {
-        activeKeys.add(event.key.toLowerCase());
+        const key = normalizeKey(event.key);
+        if (!key) return;
+        activeKeys.add(key);
+        pressedKeys.add(key);
     };
 
     const handleKeyUp = (event) => {
-        activeKeys.delete(event.key.toLowerCase());
+        const key = normalizeKey(event.key);
+        if (!key) return;
+        activeKeys.delete(key);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -53,12 +64,22 @@ export function createInputHandler() {
 
     return {
         isActive(key) {
-            return activeKeys.has(key);
+            return activeKeys.has(normalizeKey(key));
+        },
+        consumePressed(key) {
+            const normalized = normalizeKey(key);
+            if (!normalized) return false;
+            if (pressedKeys.has(normalized)) {
+                pressedKeys.delete(normalized);
+                return true;
+            }
+            return false;
         },
         dispose() {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
             activeKeys.clear();
+            pressedKeys.clear();
         }
     };
 }
@@ -132,11 +153,11 @@ export function updatePlayer(delta, player, input, state, physics = null) {
             const jumpDuration = player.userData?.animationDurations?.jump || JUMP_ANIMATION_DURATION;
             state.jumpTimer = jumpDuration;
             state.activeAnimation = 'jump';
-            return;
+            return true;
         }
 
         if (isJumping) {
-            return;
+            return true;
         }
 
         const targetAnimation = hasMoveInput ? 'run' : 'idle';
@@ -144,6 +165,8 @@ export function updatePlayer(delta, player, input, state, physics = null) {
             state.activeAnimation = targetAnimation;
         }
     }
+
+    return hasMoveInput;
 }
 
 export function updateCamera(delta, camera, player, offset, cameraTarget, lookTarget) {

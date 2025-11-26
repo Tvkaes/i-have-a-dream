@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT } from '../config/index.js';
 import { GRASS_TEXTURE_PATH, MIX_TEXTURE_PATH } from '../config/assets.js';
+import { INTERACTION_DIALOGUES } from '../config/dialogues.js';
 import { createToonMaterial } from './materials.js';
 import { sharedGeometries } from '../shared/index.js';
 import { loadCachedTexture } from '../rendering/assetCache.js';
@@ -28,6 +29,50 @@ let grassDetailPrototype = null;
 let rockPlantPrototype = null;
 const flowerModelLibrary = [];
 const treeInstances = new Set();
+const interactables = [];
+
+class GroundBatcher {
+    constructor() {
+        this.entries = new Map();
+        this.tmpPosition = new THREE.Vector3();
+        this.tmpEuler = new THREE.Euler();
+        this.tmpQuaternion = new THREE.Quaternion();
+        this.unitScale = new THREE.Vector3(1, 1, 1);
+    }
+
+    addInstance(material, gridX, gridY, rotationY = 0, offsetY = 0) {
+        if (!material) return;
+        let entry = this.entries.get(material);
+        if (!entry) {
+            entry = { material, matrices: [] };
+            this.entries.set(material, entry);
+        }
+
+        const worldX = gridX * TILE_SIZE - HALF_WORLD_WIDTH;
+        const worldZ = gridY * TILE_SIZE - HALF_WORLD_HEIGHT;
+        const matrix = new THREE.Matrix4();
+        this.tmpPosition.set(worldX, offsetY, worldZ);
+        this.tmpQuaternion.setFromEuler(this.tmpEuler.set(0, rotationY, 0));
+        matrix.compose(this.tmpPosition, this.tmpQuaternion, this.unitScale);
+        entry.matrices.push(matrix);
+    }
+
+    commitTo(group) {
+        if (!group) return;
+        this.entries.forEach(({ material, matrices }) => {
+            if (!matrices.length) return;
+            const instanced = new THREE.InstancedMesh(sharedGeometries.plane, material, matrices.length);
+            matrices.forEach((matrix, index) => {
+                instanced.setMatrixAt(index, matrix);
+            });
+            instanced.instanceMatrix.needsUpdate = true;
+            instanced.castShadow = false;
+            instanced.receiveShadow = true;
+            instanced.name = 'GroundBatch';
+            group.add(instanced);
+        });
+    }
+}
 
 export function registerTreeInstance(object3D) {
     if (object3D) {
@@ -41,6 +86,38 @@ export function getTreeInstances() {
 
 export function clearTreeInstances() {
     treeInstances.clear();
+}
+
+export function registerInteractable(entry = {}) {
+    const {
+        id,
+        position,
+        radius = TILE_SIZE,
+        prompt = 'Presiona Enter para interactuar',
+        message = [],
+        onInteract = null
+    } = entry;
+    if (!position) return;
+    const safePosition = position.clone ? position.clone() : new THREE.Vector3(position.x ?? 0, position.y ?? 0, position.z ?? 0);
+    const messages = Array.isArray(message)
+        ? message.map((line) => `${line}`)
+        : (message ? [`${message}`] : []);
+    interactables.push({
+        id: id ?? `interactable-${interactables.length}`,
+        position: safePosition,
+        radius,
+        prompt,
+        messages,
+        onInteract
+    });
+}
+
+export function getInteractables() {
+    return interactables;
+}
+
+export function clearInteractables() {
+    interactables.length = 0;
 }
 
 export function registerTreeModel(name, modelScene, { isDefault = false } = {}) {
@@ -231,17 +308,22 @@ export function createHouseRecords() {
 }
 
 export function populateWorld(worldGroup, tileMap, houseRecords) {
+    const groundBatcher = new GroundBatcher();
+    clearTreeInstances();
+    clearInteractables();
     addPathOverlay(worldGroup, tileMap);
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
-            const tile = createTile(x, y, tileMap[y][x], houseRecords, tileMap);
+            const tile = createTile(x, y, tileMap[y][x], houseRecords, tileMap, groundBatcher);
             worldGroup.add(tile);
         }
     }
+    groundBatcher.commitTo(worldGroup);
 }
 
-function createTile(gridX, gridY, type, houseRecords, tileMap) {
+function createTile(gridX, gridY, type, houseRecords, tileMap, groundBatcher) {
     const group = new THREE.Group();
+    const worldPosition = gridToWorldPosition(gridX, gridY);
 
     const addGround = (color, emissive = 0x000000, offsetY = 0, materialOverride = null) => {
         const material = materialOverride ?? createToonMaterial(color, emissive);
@@ -255,9 +337,14 @@ function createTile(gridX, gridY, type, houseRecords, tileMap) {
     const addGrassGround = (gridX, gridY, tileMap, offsetY = 0) => {
         const touchesPath = isGrassTileTouchingPath(gridX, gridY, tileMap);
         const material = touchesPath ? getMixMaterial(gridX, gridY) : getGrassMaterial(gridX, gridY);
-        const mesh = addGround(BASE_GRASS_COLOR, 0x000000, offsetY, material);
-        if (touchesPath && touchesPathLaterally(gridX, gridY, tileMap)) {
-            mesh.rotation.y = Math.PI / 2;
+        const rotation = touchesPath && touchesPathLaterally(gridX, gridY, tileMap) ? Math.PI / 2 : 0;
+        if (groundBatcher) {
+            groundBatcher.addInstance(material, gridX, gridY, rotation, offsetY);
+        } else {
+            const mesh = addGround(BASE_GRASS_COLOR, 0x000000, offsetY, material);
+            if (rotation !== 0) {
+                mesh.rotation.y = rotation;
+            }
         }
     };
 
@@ -326,6 +413,13 @@ function createTile(gridX, gridY, type, houseRecords, tileMap) {
             signBoard.position.y = 0.75;
             signBoard.castShadow = true;
             group.add(signBoard);
+
+            registerInteractable({
+                id: `sign-${gridX}-${gridY}`,
+                position: worldPosition,
+                radius: TILE_SIZE,
+                ...INTERACTION_DIALOGUES.signWelcome
+            });
             break;
         case 11:
             addGrassGround(gridX, gridY, tileMap);
@@ -335,19 +429,31 @@ function createTile(gridX, gridY, type, houseRecords, tileMap) {
             } else {
                 addMailboxDecoration(group, gridX, gridY);
             }
+
+            registerInteractable({
+                id: `mailbox-${gridX}-${gridY}`,
+                position: worldPosition,
+                radius: 1.4,
+                prompt: 'Presiona Enter para revisar el buzón',
+                message: 'El buzón está repleto de cartas perfumadas. Quizá alguien espera tu respuesta.'
+            });
             break;
         default:
             addGround(0x5db85d);
             break;
     }
 
-    group.position.set(
+    group.position.copy(worldPosition);
+
+    return group;
+}
+
+function gridToWorldPosition(gridX, gridY) {
+    return new THREE.Vector3(
         gridX * TILE_SIZE - HALF_WORLD_WIDTH,
         0,
         gridY * TILE_SIZE - HALF_WORLD_HEIGHT
     );
-
-    return group;
 }
 
 function getGrassMaterial(gridX, gridY) {

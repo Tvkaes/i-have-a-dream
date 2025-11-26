@@ -5,7 +5,8 @@ import {
     buildTileMap,
     createHouseRecords,
     populateWorld,
-    getTreeInstances
+    getTreeInstances,
+    getInteractables
 } from '../world/index.js';
 import { loadHouseClusters } from '../world/houses.js';
 import {
@@ -31,8 +32,13 @@ import {
 } from '../physics/index.js';
 import { PhysicsManager } from '../physics/manager.js';
 
-const BLOCKING_TILE_TYPES = new Set([5, 6, 7, 9, 10, 11]);
+const BLOCKING_TILE_TYPES = new Set([3, 4, 5, 6, 7, 9, 10, 11]);
 const USE_HAND_PAINTED_FX = true;
+const HAND_PAINTED_RESOLUTION_SCALE = 0.85;
+const MAX_PIXEL_RATIO_DESKTOP = 1.5;
+const MAX_PIXEL_RATIO_MOBILE = 1.25;
+const MOBILE_VIEWPORT_QUERY = '(max-width: 768px)';
+const PHYSICS_IDLE_STEP_INTERVAL = 0.5; // segundos entre steps cuando el jugador está quieto
 
 let RAPIER = null;
 let disposeSceneHandle = null;
@@ -54,6 +60,7 @@ async function initScene() {
     const renderer = createRenderer(container);
     const loadingManager = new THREE.LoadingManager();
     const cameraContext = createCameraContext();
+    const interactionOverlay = setupInteractionOverlay();
     const { handPaintedFX, enablePostProcess, postProcessFallback, disposePostProcess } = setupPostProcess(renderer);
 
     addLights(scene);
@@ -81,7 +88,8 @@ async function initScene() {
         physics,
         physicsManager,
         clock,
-        handPaintedFX
+        handPaintedFX,
+        interactionOverlay
     });
 
     const detachLoadingCallbacks = setupLoadingCallbacks(loadingManager, enablePostProcess, postProcessFallback);
@@ -98,6 +106,184 @@ async function initScene() {
         renderer.dispose();
         disposePhysicsContext(physics);
     };
+}
+
+function isPlayerFacingInteractable(player, targetPosition, tmpDirection, tmpForward) {
+    tmpForward.set(0, 0, -1).applyQuaternion(player.quaternion);
+    tmpForward.y = 0;
+    if (tmpForward.lengthSq() < 1e-5) return false;
+    tmpForward.normalize();
+
+    tmpDirection.copy(targetPosition).sub(player.position);
+    tmpDirection.y = 0;
+    if (tmpDirection.lengthSq() < 1e-4) return true;
+    tmpDirection.normalize();
+
+    const alignment = tmpForward.dot(tmpDirection);
+    return alignment >= 0.35;
+}
+
+function setupInteractionOverlay() {
+    const container = getCanvasContainer();
+    let overlay = document.getElementById('interaction-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'interaction-overlay';
+        container.appendChild(overlay);
+    }
+
+    const ensurePanel = (id, className = 'interaction-panel hidden') => {
+        let panel = document.getElementById(id);
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = id;
+            panel.className = className;
+            overlay.appendChild(panel);
+        }
+        return panel;
+    };
+
+    const promptPanel = ensurePanel('interaction-prompt');
+    let promptText = promptPanel.querySelector('p');
+    if (!promptText) {
+        promptText = document.createElement('p');
+        promptPanel.appendChild(promptText);
+    }
+    let messagePanel = document.getElementById('interaction-message');
+    if (!messagePanel) {
+        messagePanel = document.createElement('div');
+        messagePanel.id = 'interaction-message';
+        messagePanel.className = 'interaction-panel hidden';
+        const messageParagraph = document.createElement('p');
+        messageParagraph.id = 'interaction-message-text';
+        messagePanel.appendChild(messageParagraph);
+        const hint = document.createElement('span');
+        hint.className = 'interaction-hint';
+        hint.textContent = '';
+        messagePanel.appendChild(hint);
+        overlay.appendChild(messagePanel);
+    }
+
+    let messageText = document.getElementById('interaction-message-text');
+    if (!messageText) {
+        messageText = document.createElement('p');
+        messageText.id = 'interaction-message-text';
+        messagePanel.prepend(messageText);
+    }
+
+    promptPanel.classList.add('hidden');
+    messagePanel.classList.add('hidden');
+
+    let activeMessages = [];
+    let messageIndex = 0;
+
+    const api = {
+        showPrompt(text = '') {
+            promptText.textContent = text;
+            promptPanel.classList.remove('hidden');
+        },
+        hidePrompt() {
+            promptPanel.classList.add('hidden');
+        },
+        showMessage(text = '') {
+            messageText.textContent = text;
+            messagePanel.classList.remove('hidden');
+        },
+        hideMessage() {
+            messagePanel.classList.add('hidden');
+            activeMessages = [];
+            messageIndex = 0;
+        },
+        hideAll() {
+            promptPanel.classList.add('hidden');
+            messagePanel.classList.add('hidden');
+            activeMessages = [];
+            messageIndex = 0;
+        },
+        isMessageVisible() {
+            return !messagePanel.classList.contains('hidden');
+        },
+        startMessageSequence(messages = []) {
+            if (!Array.isArray(messages) || messages.length === 0) return;
+            activeMessages = messages;
+            messageIndex = 0;
+            messageText.textContent = messages[0];
+            messagePanel.classList.remove('hidden');
+        },
+        advanceMessage() {
+            if (!activeMessages.length) {
+                api.hideMessage();
+                api.hidePrompt();
+                return;
+            }
+            messageIndex += 1;
+            if (messageIndex >= activeMessages.length) {
+                api.hideMessage();
+                api.hidePrompt();
+                return;
+            }
+            messageText.textContent = activeMessages[messageIndex];
+        }
+    };
+
+    return api;
+}
+
+function updateInteractionIndicators({
+    player,
+    camera,
+    input,
+    overlay,
+    tmpVector,
+    tmpForward,
+    activeInteractable
+}) {
+    const nearest = findNearestInteractable(player.position, tmpVector);
+    const hasMessageOpen = overlay.isMessageVisible();
+
+    if (hasMessageOpen) {
+        if (input.consumePressed('enter') || input.consumePressed('return')) {
+            overlay.advanceMessage();
+        }
+        return { interactable: activeInteractable };
+    }
+
+    if (nearest && isPlayerFacingInteractable(player, nearest.position, tmpVector, tmpForward)) {
+        overlay.showPrompt(nearest.prompt);
+
+        if (input.consumePressed('enter') || input.consumePressed('return')) {
+            if (nearest.messages?.length) {
+                overlay.startMessageSequence(nearest.messages);
+                overlay.hidePrompt();
+            }
+            nearest.onInteract?.();
+            if (!nearest.messages?.length) {
+                overlay.hidePrompt();
+            }
+        }
+        return { interactable: nearest };
+    }
+
+    overlay.hideAll();
+    return { interactable: null };
+}
+
+function findNearestInteractable(playerPosition, tmpVector) {
+    const interactables = getInteractables();
+    if (!interactables?.length) return null;
+    let closest = null;
+    let minDistanceSq = Infinity;
+
+    interactables.forEach((entry) => {
+        tmpVector.copy(entry.position);
+        const distanceSq = tmpVector.distanceToSquared(playerPosition);
+        if (distanceSq < minDistanceSq && distanceSq <= (entry.radius ?? 1.2) ** 2) {
+            closest = entry;
+            minDistanceSq = distanceSq;
+        }
+    });
+
+    return closest;
 }
 
 function cullTreesNearCamera(camera, treeInstances, culledTrees) {
@@ -153,27 +339,35 @@ export function registerSceneInitHook(hook) {
 }
 
 function addLights(scene) {
+    const isMobile = isMobileViewport();
+    const sunShadowsEnabled = !isMobile;
+    const dirShadowsEnabled = !isMobile;
+
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
 
     const sunLight = new THREE.DirectionalLight(0xfff8cc, 1.5);
     sunLight.position.set(-30, 60, 20);
-    sunLight.castShadow = true;
+    sunLight.castShadow = sunShadowsEnabled;
     sunLight.shadow.camera.left = -80;
     sunLight.shadow.camera.right = 80;
     sunLight.shadow.camera.top = 80;
     sunLight.shadow.camera.bottom = -80;
-    sunLight.shadow.mapSize.set(2048, 2048);
+    if (sunShadowsEnabled) {
+        sunLight.shadow.mapSize.set(2048, 2048);
+    }
     scene.add(sunLight);
 
     const dirLight = new THREE.DirectionalLight(0xfff4e6, 1.2);
     dirLight.position.set(5, 15, 5);
-    dirLight.castShadow = true;
+    dirLight.castShadow = dirShadowsEnabled;
     dirLight.shadow.camera.left = -30;
     dirLight.shadow.camera.right = 30;
     dirLight.shadow.camera.top = 30;
     dirLight.shadow.camera.bottom = -30;
-    dirLight.shadow.mapSize.set(1024, 1024);
+    if (dirShadowsEnabled) {
+        dirLight.shadow.mapSize.set(1024, 1024);
+    }
     scene.add(dirLight);
 
     const fillLight = new THREE.DirectionalLight(0xadd8e6, 0.3);
@@ -196,12 +390,21 @@ function createSceneInstance() {
     return scene;
 }
 
+function isMobileViewport() {
+    return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
+}
+
+function getMaxPixelRatio() {
+    return isMobileViewport() ? MAX_PIXEL_RATIO_MOBILE : MAX_PIXEL_RATIO_DESKTOP;
+}
+
 function createRenderer(container) {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const enableShadows = !isMobileViewport();
+    renderer.shadowMap.enabled = enableShadows;
+    renderer.shadowMap.type = enableShadows ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, getMaxPixelRatio()));
     renderer.setSize(window.innerWidth, window.innerHeight);
     container.replaceChildren(renderer.domElement);
     return renderer;
@@ -226,7 +429,9 @@ function setupPostProcess(renderer) {
         };
     }
 
-    const handPaintedFX = createHandPaintedPostProcess(renderer);
+    const handPaintedFX = createHandPaintedPostProcess(renderer, {
+        resolutionScale: HAND_PAINTED_RESOLUTION_SCALE
+    });
     const enablePostProcess = () => {
         if (handPaintedFX && !handPaintedFX.enabled) {
             handPaintedFX.enabled = true;
@@ -287,21 +492,49 @@ function startRenderLoop({
     physics,
     physicsManager,
     clock,
-    handPaintedFX
+    handPaintedFX,
+    interactionOverlay
 }) {
     const { camera, cameraTarget, lookTarget, offset } = cameraContext;
     camera.layers.set(0);
 
     const culledTrees = new WeakMap();
+    const tmpVector = new THREE.Vector3();
+    const tmpForward = new THREE.Vector3();
+    let activeInteractable = null;
+    let physicsIdleTimer = 0;
 
     const loop = () => {
         const delta = clock.getDelta();
         const elapsed = clock.getElapsedTime();
-        updatePlayer(delta, player, input, playerState, physics);
-        physicsManager?.step();
-        physicsManager?.syncPlayer(player);
+        const playerActive = updatePlayer(delta, player, input, playerState, physics);
+
+        if (physicsManager) {
+            if (playerActive) {
+                physicsIdleTimer = 0;
+                physicsManager.step();
+                physicsManager.syncPlayer(player);
+            } else {
+                physicsIdleTimer += delta;
+                if (physicsIdleTimer >= PHYSICS_IDLE_STEP_INTERVAL) {
+                    physicsManager.step();
+                    physicsManager.syncPlayer(player);
+                    physicsIdleTimer = 0;
+                }
+            }
+        }
         updateCamera(delta, camera, player, offset, cameraTarget, lookTarget);
         cullTreesNearCamera(camera, getTreeInstances(), culledTrees);
+        const { interactable } = updateInteractionIndicators({
+            player,
+            camera,
+            input,
+            overlay: interactionOverlay,
+            tmpVector,
+            tmpForward,
+            activeInteractable
+        });
+        activeInteractable = interactable;
         if (handPaintedFX?.enabled) {
             handPaintedFX.render(scene, camera, elapsed);
         } else {
@@ -341,6 +574,7 @@ function setupResizeHandler({ cameraContext, renderer, handPaintedFX }) {
         const { camera } = cameraContext;
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, getMaxPixelRatio()));
         renderer.setSize(window.innerWidth, window.innerHeight);
         handPaintedFX?.setSize(window.innerWidth, window.innerHeight);
     };
