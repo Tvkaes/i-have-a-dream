@@ -89,11 +89,10 @@ canvas {
     position: relative;
     border-radius: 14px;
     padding: 12px 16px;
-
     background:
         radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.35) 0%, transparent 55%),
         linear-gradient(135deg, #fff9e9 0%, #f6e6c8 100%);
-    overflow: hidden;
+    overflow: visible;
 }
 
 .dialogue-paint-texture {
@@ -209,17 +208,66 @@ canvas {
 }
 
 .dialogue-continue.hidden {
-display: none;
+    display: none;
+}
+
+.dialogue-choice-panel {
+    position: absolute;
+    top: 24px;
+    right: -160px;
+    width: 150px;
+    background: linear-gradient(180deg, #f9f4df 0%, #f0e3c5 100%);
+    border: 3px solid rgba(53, 33, 15, 0.35);
+    border-radius: 18px;
+    padding: 0.5rem 0.75rem;
+    box-shadow:
+        0 10px 20px rgba(0, 0, 0, 0.35),
+        inset 0 0 0 2px rgba(255, 255, 255, 0.45);
+}
+
+.dialogue-choice-panel.hidden {
+    display: none;
+}
+
+.choice-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.95rem;
+    color: #3a2b1a;
+}
+
+.choice-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.2rem 0;
+}
+
+.choice-option::before {
+    content: '';
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid transparent;
+}
+
+.choice-option.active::before {
+    border-top-color: #5d4a3a;
 }
 
 .continue-arrow {
-width: 0;
-height: 0;
-border-left: 10px solid transparent;
-border-right: 10px solid transparent;
-border-top: 14px solid #5d4a3a;
-animation: bounce 1.2s infinite;
-filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.2));
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 14px solid #5d4a3a;
+    animation: bounce 1.2s infinite;
+    filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.2));
 }
 
 @keyframes pulse {

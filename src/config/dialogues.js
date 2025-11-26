@@ -1,3 +1,8 @@
+const YES_NO_CHOICES = Object.freeze([
+    Object.freeze({ id: 'yes', label: 'Sí' }),
+    Object.freeze({ id: 'no', label: 'No' })
+]);
+
 export const INTERACTION_DIALOGUES = Object.freeze({
     default: Object.freeze({
         prompt: 'Presiona Enter para interactuar',
@@ -19,8 +24,10 @@ export const INTERACTION_DIALOGUES = Object.freeze({
         portrait: 'portraits/mainHouse.png',
         message: [
             'La puerta está tibia, como si alguien hubiera salido hace poco.',
-            'Sientes que este lugar guarda algo especial para ti.'
-        ]
+            'Sientes que este lugar guarda algo especial para ti.',
+            '¿Deseas entrar a la casa?'
+        ],
+        choices: YES_NO_CHOICES
     }),
     houseBlue: Object.freeze({
         prompt: 'Presiona Enter para tocar la puerta',
@@ -29,8 +36,10 @@ export const INTERACTION_DIALOGUES = Object.freeze({
         message: [
             'La puerta quedó entreabierta, como si alguien la hubiera olvidado así en medio del caos.',
             'Sale una mezcla de luz y música de Skrillex a todo volumen, recordándote esa etapa descuidada de secundaria.',
-            'Nadie responde, pero notas una carta pegada con tu nombre.'
-        ]
+            'Nadie responde, pero notas una carta pegada con tu nombre.',
+            '¿Deseas entrar a la casa?'
+        ],
+        choices: YES_NO_CHOICES
     }),
     houseYellow1: Object.freeze({
         prompt: 'Presiona Enter para tocar la puerta',
@@ -38,8 +47,10 @@ export const INTERACTION_DIALOGUES = Object.freeze({
         portrait: 'portraits/yellowHouse.png',
         message: [
             'La casa huele a pan recién horneado.',
-            'Tal vez regresen pronto… quizás deberías esperar.'
-        ]
+            'Tal vez regresen pronto… quizás deberías esperar.',
+            '¿Deseas entrar a la casa?'
+        ],
+        choices: YES_NO_CHOICES
     }),
     houseYellow2: Object.freeze({
         prompt: 'Presiona Enter para tocar la puerta',
@@ -47,7 +58,9 @@ export const INTERACTION_DIALOGUES = Object.freeze({
         portrait: 'portraits/yellowHouse.png',
         message: [
             'Escuchas risas lejanas al tocar.',
-            'Hay un letrero: “Vuelve cuando traigas flores”.'
-        ]
+            'Hay un letrero: “Vuelve cuando traigas flores”.',
+            '¿Deseas entrar a la casa?'
+        ],
+        choices: YES_NO_CHOICES
     })
 });

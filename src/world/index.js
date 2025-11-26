@@ -112,7 +112,9 @@ export function registerInteractable(entry = {}) {
         onInteract = null,
         speaker = '',
         portrait = '',
-        autoTrigger = false
+        autoTrigger = false,
+        choices = null,
+        onChoiceSelect = null
     } = entry;
     if (!position) return;
     const safePosition = position.clone ? position.clone() : new THREE.Vector3(position.x ?? 0, position.y ?? 0, position.z ?? 0);
@@ -129,6 +131,11 @@ export function registerInteractable(entry = {}) {
         speaker,
         portrait,
         autoTrigger,
+        choices: Array.isArray(choices) ? choices.map((choice) => ({
+            id: choice?.id ?? choice?.value ?? choice?.label ?? String(choice),
+            label: choice?.label ?? choice?.id ?? String(choice)
+        })) : null,
+        onChoiceSelect,
         __autoShown: false
     });
 }

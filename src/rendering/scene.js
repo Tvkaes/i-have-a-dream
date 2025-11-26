@@ -192,6 +192,10 @@ function setupInteractionOverlay() {
         const continuePrompt = createElement('div', 'dialogue-continue hidden', content);
         continuePrompt.id = 'interaction-continue';
         createElement('span', 'continue-arrow', continuePrompt);
+        const choicePanel = createElement('div', 'dialogue-choice-panel hidden', content);
+        choicePanel.id = 'interaction-choice-panel';
+        const choiceList = createElement('ul', 'choice-list', choicePanel);
+        choiceList.id = 'interaction-choice-list';
     }
 
     const messageText = document.getElementById('interaction-message-text');
@@ -199,6 +203,8 @@ function setupInteractionOverlay() {
     const continuePrompt = document.getElementById('interaction-continue');
     const portraitElement = document.getElementById('interaction-portrait');
     const portraitImageElement = document.getElementById('interaction-portrait-image');
+    const choicePanel = document.getElementById('interaction-choice-panel');
+    const choiceList = document.getElementById('interaction-choice-list');
 
     promptPanel.classList.add('hidden');
     messagePanel.classList.add('hidden');
@@ -206,6 +212,10 @@ function setupInteractionOverlay() {
     let activeMessages = [];
     let messageIndex = 0;
     let activeSpeaker = '';
+    let pendingChoices = null;
+    let activeChoices = [];
+    let choiceIndex = 0;
+    let choiceCallback = null;
 
     const setSpeaker = (value = '') => {
         activeSpeaker = value || '';
@@ -217,6 +227,55 @@ function setupInteractionOverlay() {
     const setContinueVisible = (visible) => {
         if (!continuePrompt) return;
         continuePrompt.classList.toggle('hidden', !visible);
+    };
+
+    const renderChoices = () => {
+        if (!choiceList) return;
+        choiceList.innerHTML = '';
+        activeChoices.forEach((choice, idx) => {
+            const item = document.createElement('li');
+            item.className = `choice-option${idx === choiceIndex ? ' active' : ''}`;
+            item.textContent = choice.label ?? choice.id ?? `Opción ${idx + 1}`;
+            choiceList.appendChild(item);
+        });
+    };
+
+    const setChoicesVisible = (visible) => {
+        if (!choicePanel) return;
+        choicePanel.classList.toggle('hidden', !visible);
+        if (!visible) {
+            choiceList.innerHTML = '';
+        }
+    };
+
+    const startChoices = (choices = [], callback = null) => {
+        if (!Array.isArray(choices) || choices.length === 0) return;
+        activeChoices = choices;
+        choiceIndex = 0;
+        choiceCallback = typeof callback === 'function' ? callback : null;
+        setContinueVisible(false);
+        renderChoices();
+        setChoicesVisible(true);
+    };
+
+    const finishChoices = () => {
+        setChoicesVisible(false);
+        activeChoices = [];
+        choiceIndex = 0;
+        const callback = choiceCallback;
+        choiceCallback = null;
+        pendingChoices = null;
+        return callback;
+    };
+
+    const hasActiveChoices = () => activeChoices.length > 0;
+
+    const queueChoices = (choices, callback) => {
+        if (Array.isArray(choices) && choices.length) {
+            pendingChoices = { choices, callback };
+        } else {
+            pendingChoices = null;
+        }
     };
 
     const resolvePortraitSrc = (src = '') => {
@@ -290,6 +349,10 @@ function setupInteractionOverlay() {
             setSpeaker('');
             setContinueVisible(false);
             setPortraitImage('');
+            setChoicesVisible(false);
+            activeChoices = [];
+            pendingChoices = null;
+            choiceCallback = null;
         },
         hideAll() {
             promptPanel.classList.add('hidden');
@@ -299,11 +362,15 @@ function setupInteractionOverlay() {
             setSpeaker('');
             setContinueVisible(false);
             setPortraitImage('');
+            setChoicesVisible(false);
+            activeChoices = [];
+            pendingChoices = null;
+            choiceCallback = null;
         },
         isMessageVisible() {
             return !messagePanel.classList.contains('hidden');
         },
-        startMessageSequence(messages = [], speaker = '', portrait = '') {
+        startMessageSequence(messages = [], speaker = '', portrait = '', { choices = null, onSelect = null } = {}) {
             if (!Array.isArray(messages) || messages.length === 0) return;
             activeMessages = messages;
             messageIndex = 0;
@@ -312,6 +379,7 @@ function setupInteractionOverlay() {
             messageText.textContent = messages[0];
             messagePanel.classList.remove('hidden');
             setContinueVisible(true);
+            queueChoices(choices, onSelect);
         },
         advanceMessage() {
             if (!activeMessages.length) {
@@ -321,11 +389,41 @@ function setupInteractionOverlay() {
             }
             messageIndex += 1;
             if (messageIndex >= activeMessages.length) {
+                if (pendingChoices) {
+                    startChoices(pendingChoices.choices, pendingChoices.callback);
+                    return;
+                }
                 api.hideMessage();
                 api.hidePrompt();
                 return;
             }
             messageText.textContent = activeMessages[messageIndex];
+        },
+        isChoiceActive() {
+            return hasActiveChoices();
+        },
+        moveChoice(delta = 0) {
+            if (!hasActiveChoices()) return;
+            const length = activeChoices.length;
+            choiceIndex = (choiceIndex + delta + length) % length;
+            renderChoices();
+        },
+        confirmChoice() {
+            if (!hasActiveChoices()) return;
+            const selected = activeChoices[choiceIndex];
+            const callback = finishChoices();
+            api.hideMessage();
+            api.hidePrompt();
+            if (callback) {
+                try {
+                    callback(selected);
+                } catch (err) {
+                    console.warn('Error al manejar la elección:', err);
+                }
+            }
+        },
+        shouldLockControls() {
+            return api.isMessageVisible() || hasActiveChoices();
         }
     };
 
@@ -342,7 +440,22 @@ function updateInteractionIndicators({
     activeInteractable
 }) {
     const nearest = findNearestInteractable(player.position, tmpVector);
+    const hasChoiceActive = overlay.isChoiceActive?.() ?? false;
     const hasMessageOpen = overlay.isMessageVisible();
+
+    if (hasChoiceActive) {
+        const moveUp = input.consumePressed('arrowup') || input.consumePressed('w');
+        const moveDown = input.consumePressed('arrowdown') || input.consumePressed('s');
+        if (moveUp) {
+            overlay.moveChoice?.(-1);
+        } else if (moveDown) {
+            overlay.moveChoice?.(1);
+        }
+        if (input.consumePressed('enter') || input.consumePressed('return')) {
+            overlay.confirmChoice?.();
+        }
+        return { interactable: activeInteractable };
+    }
 
     if (hasMessageOpen) {
         if (input.consumePressed('enter') || input.consumePressed('return')) {
@@ -355,7 +468,10 @@ function updateInteractionIndicators({
         if (nearest.autoTrigger) {
             if (nearest.messages?.length) {
                 if (!nearest.__autoShown) {
-                    overlay.startMessageSequence(nearest.messages, nearest.speaker, nearest.portrait);
+                    overlay.startMessageSequence(nearest.messages, nearest.speaker, nearest.portrait, {
+                        choices: nearest.choices,
+                        onSelect: (choice) => nearest.onChoiceSelect?.(choice, nearest)
+                    });
                     nearest.__autoShown = true;
                 }
             } else {
@@ -369,7 +485,10 @@ function updateInteractionIndicators({
 
         if (input.consumePressed('enter') || input.consumePressed('return')) {
             if (nearest.messages?.length) {
-                overlay.startMessageSequence(nearest.messages, nearest.speaker, nearest.portrait);
+                overlay.startMessageSequence(nearest.messages, nearest.speaker, nearest.portrait, {
+                    choices: nearest.choices,
+                    onSelect: (choice) => nearest.onChoiceSelect?.(choice, nearest)
+                });
                 overlay.hidePrompt();
             }
             nearest.onInteract?.();
@@ -623,7 +742,8 @@ function startRenderLoop({
     const loop = () => {
         const delta = clock.getDelta();
         const elapsed = clock.getElapsedTime();
-        const playerActive = updatePlayer(delta, player, input, playerState, physics);
+        const controlsLocked = interactionOverlay?.shouldLockControls?.() ?? false;
+        const playerActive = controlsLocked ? false : updatePlayer(delta, player, input, playerState, physics);
 
         if (physicsManager) {
             if (playerActive) {
