@@ -326,7 +326,7 @@ export function createHouseInterior(houseType, physics = null) {
 
         registerInteractable({
             id: 'kid-green-house',
-            position: new THREE.Vector3(-1.5, PLAYER_CONFIG.baseHeight, -1),
+            position: new THREE.Vector3(-3, PLAYER_CONFIG.baseHeight, 0.5),
             radius: TILE_SIZE,
             worldId: 'interior-green',
             ...INTERACTION_DIALOGUES.kidGreenHouse,

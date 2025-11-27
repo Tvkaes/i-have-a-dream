@@ -79,7 +79,7 @@ export const INTERACTION_DIALOGUES = Object.freeze({
     pokeChikorita: Object.freeze({
         prompt: 'Presiona Enter para revisar la Pokébola',
         speaker: 'Pokébola',
-        portrait: 'portraits/pokeball.webp',
+        portrait: 'portraits/pokeball.png',
         message: [
             'Dentro sientes una energía calmada y fresca.',
             'Chikorita parece balancear suavemente su hoja.',
@@ -90,7 +90,7 @@ export const INTERACTION_DIALOGUES = Object.freeze({
     pokeSquirtle: Object.freeze({
         prompt: 'Presiona Enter para revisar la Pokébola',
         speaker: 'Pokébola',
-        portrait: 'portraits/pokeball.webp',
+        portrait: 'portraits/pokeball.png',
         message: [
             'Escuchas un pequeño chapoteo al acercarte.',
             'Squirtle parece impaciente por demostrar su caparazón.',
@@ -101,7 +101,7 @@ export const INTERACTION_DIALOGUES = Object.freeze({
     pokePidgey: Object.freeze({
         prompt: 'Presiona Enter para revisar la Pokébola',
         speaker: 'Pokébola',
-        portrait: 'portraits/pokeball.webp',
+        portrait: 'portraits/pokeball.png',
         message: [
             'Un leve batir de alas resuena en tu mano.',
             'Pidgey vigila todo desde las alturas incluso dentro de la esfera.',
@@ -112,7 +112,7 @@ export const INTERACTION_DIALOGUES = Object.freeze({
     pokeRattata: Object.freeze({
         prompt: 'Presiona Enter para revisar la Pokébola',
         speaker: 'Pokébola',
-        portrait: 'portraits/pokeball.webp',
+        portrait: 'portraits/pokeball.png',
         message: [
             'Sientes un movimiento rápido y nervioso.',
             'Rattata parece listo para correr hacia cualquier reto.',
@@ -123,7 +123,7 @@ export const INTERACTION_DIALOGUES = Object.freeze({
     pokePikachu: Object.freeze({
         prompt: 'Presiona Enter para revisar la Pokébola',
         speaker: 'Pokébola',
-        portrait: 'portraits/pokeball.webp',
+        portrait: 'portraits/pokeball.png',
         message: [
             'Un pequeño chispazo te eriza la piel.',
             'Pikachu parece sonreír desde dentro.',
@@ -134,7 +134,7 @@ export const INTERACTION_DIALOGUES = Object.freeze({
     pokeEevee: Object.freeze({
         prompt: 'Presiona Enter para revisar la Pokébola',
         speaker: 'Pokébola',
-        portrait: 'portraits/pokeball.webp',
+        portrait: 'portraits/pokeball.png',
         message: [
             'Percibes un suave ronroneo y un sinfín de posibilidades.',
             'Eevee parece esperar la decisión que definirá su evolución.',
