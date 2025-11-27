@@ -2,8 +2,49 @@ import * as THREE from 'three';
 import { updatePlayer, updateCamera } from '../player/index.js';
 import { getTreeInstances, getInteractables } from '../world/index.js';
 import { getCurrentWorldId } from '../world/scenes.js';
+import { getFlag } from '../state/gameFlags.js';
 
 const PHYSICS_IDLE_STEP_INTERVAL = 0.5;
+const ACTION_COLUMN_STEP = 1;
+const ACTION_ROW_STEP = 2;
+
+function handleBattleMenuInput(input) {
+    const hud = window.__battleHud__;
+    if (!hud?.isVisible?.()) return false;
+
+    const mode = hud.getMode?.() ?? 'action';
+    const isMoveMode = mode === 'moves';
+    let consumed = false;
+
+    const consume = (key) => input.consumePressed(key);
+    const moveSelection = (delta, isVertical = false) => {
+        const step = isVertical ? ACTION_ROW_STEP : ACTION_COLUMN_STEP;
+        if (isMoveMode) {
+            hud.highlightMove(delta * step);
+        } else {
+            hud.highlightAction(delta * step);
+        }
+    };
+
+    if (consume('arrowup') || consume('w')) {
+        moveSelection(-1, true);
+        consumed = true;
+    }
+    if (consume('arrowdown') || consume('s')) {
+        moveSelection(1, true);
+        consumed = true;
+    }
+    if (consume('arrowleft') || consume('a')) {
+        moveSelection(-1, false);
+        consumed = true;
+    }
+    if (consume('arrowright') || consume('d')) {
+        moveSelection(1, false);
+        consumed = true;
+    }
+
+    return consumed;
+}
 
 function cullTreesNearCamera(camera, treeInstances, culledMap) {
     const cameraPos = camera.position;
@@ -144,8 +185,17 @@ export function startRenderLoop({
     const loop = () => {
         const delta = clock.getDelta();
         const elapsed = clock.getElapsedTime();
-        const controlsLocked = interactionOverlay?.shouldLockControls?.() ?? false;
+        const battleActive = Boolean(getFlag('isBattleActive'));
+        if (battleActive) {
+            handleBattleMenuInput(input);
+        }
+
+        const controlsLocked = (interactionOverlay?.shouldLockControls?.() ?? false) || battleActive;
         const playerActive = controlsLocked ? false : updatePlayer(delta, player, input, playerState, physics);
+
+        if (battleActive && physics?.playerBody) {
+            physics.playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        }
 
         if (physicsManager) {
             if (playerActive) {

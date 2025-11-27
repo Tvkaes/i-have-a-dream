@@ -5,6 +5,7 @@ import {
     createHouseRecords,
     populateWorld
 } from './index.js';
+import { clearLandmarks } from './landmarks.js';
 import { loadHouseClusters } from './houses.js';
 import {
     loadTreePrototypes,
@@ -26,6 +27,7 @@ export function preloadEnvironmentAssets(gltfLoader) {
 }
 
 export function buildWorld(scene, gltfLoader, physics) {
+    clearLandmarks();
     const worldGroup = new THREE.Group();
     worldGroup.userData.isWorldGroup = true;
     scene.add(worldGroup);

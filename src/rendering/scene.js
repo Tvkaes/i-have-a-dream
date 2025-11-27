@@ -8,6 +8,7 @@ import { clearAssetCache } from './assetCache.js';
 import { createPhysicsContext, disposePhysicsContext, attachPlayerPhysics, enableOnlyWorldColliders } from '../physics/index.js';
 import { PhysicsManager } from '../physics/manager.js';
 import { setupInteractionOverlay } from '../ui/interactionOverlay.js';
+import { setupBattleHud } from '../ui/battleHud.js';
 import { setupLoadingScreen } from '../ui/loadingScreen.js';
 import { startRenderLoop } from './renderLoop.js';
 import {
@@ -42,6 +43,7 @@ async function initScene() {
     const renderer = createRenderer(container);
     const loadingManager = new THREE.LoadingManager();
     const cameraContext = createCameraContext();
+    window.__cameraContext__ = cameraContext;
     const { handPaintedFX, enablePostProcess, postProcessFallback, disposePostProcess } = setupPostProcess(renderer);
     const loadingScreen = setupLoadingScreen();
     window.__loadingScreen__ = loadingScreen;
@@ -67,6 +69,9 @@ async function initScene() {
     // Setup interaction overlay con acceso a scene, player y physics
     const interactionOverlay = setupInteractionOverlay(() => scene, () => player, () => physics);
     window.__interactionOverlay__ = interactionOverlay;
+
+    const battleOverlay = setupBattleHud();
+    window.__battleHud__ = battleOverlay;
     
     const input = createInputHandler();
     registerSceneDisposeHook(() => input.dispose?.());
@@ -107,6 +112,8 @@ async function initScene() {
         window.__loadingScreen__ = null;
         window.__scene__ = null;
         window.__physics__ = null;
+        window.__battleHud__ = null;
+        window.__cameraContext__ = null;
     };
 }
 

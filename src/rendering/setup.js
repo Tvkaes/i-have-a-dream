@@ -43,11 +43,18 @@ export function createRenderer(container) {
 }
 
 export function createCameraContext() {
+    const defaultOffset = new THREE.Vector3(0, 8, 10);
+    const defaultLookOffset = new THREE.Vector3(0, 0.5, -2);
+
     return {
         camera: new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 1000),
         cameraTarget: new THREE.Vector3(),
         lookTarget: new THREE.Vector3(),
-        offset: new THREE.Vector3(0, 8, 10)
+        offset: defaultOffset.clone(),
+        defaultOffset,
+        lookOffset: defaultLookOffset.clone(),
+        defaultLookOffset,
+        activeMode: 'explore'
     };
 }
 

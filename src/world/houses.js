@@ -6,10 +6,21 @@ import {
     HOUSE_MODEL_ORDER,
     HOUSE_ROTATIONS,
     HOUSE_SCALE_MULTIPLIERS,
-    GLB_TOON_BANDS
+    GLB_TOON_BANDS,
+    PLAYER_CONFIG
 } from '../config/index.js';
 import { applyToonMaterial } from './materials.js';
 import { scratch } from '../shared/index.js';
+import { setLandmark } from './landmarks.js';
+
+const MAIN_HOUSE_STAGE_OFFSET = new THREE.Vector3(0, 0, 4);
+const PLAYER_STAGE_OFFSET = new THREE.Vector3(-1.4, 0, 1.4);
+const OPPONENT_STAGE_OFFSET = new THREE.Vector3(1.4, 0, -1.1);
+const CAMERA_STAGE_OFFSET = new THREE.Vector3(-6.5, 4.5, 6);
+const MAIN_HOUSE_LANDMARK_ID = 'main-house-center';
+const BATTLE_PLAYER_LANDMARK = 'battle-player-pos';
+const BATTLE_OPPONENT_LANDMARK = 'battle-opponent-pos';
+const BATTLE_CAMERA_LANDMARK = 'battle-camera-pos';
 
 const loadedGroups = new WeakSet();
 
@@ -17,6 +28,17 @@ export function loadHouseClusters(worldGroup, houseRecords, gltfLoader, physics)
     if (!worldGroup || !houseRecords || !gltfLoader) {
         throw new Error('loadHouseClusters requiere worldGroup, houseRecords y gltfLoader');
     }
+
+function registerHouseLandmarks(cluster) {
+    if (!cluster?.tiles?.length) return;
+    const center = cluster.center?.clone?.() ?? new THREE.Vector3();
+    if (cluster.type === 'green') {
+        setLandmark(MAIN_HOUSE_LANDMARK_ID, { position: center });
+        setLandmark(BATTLE_PLAYER_LANDMARK, { position: center.clone().add(PLAYER_STAGE_OFFSET) });
+        setLandmark(BATTLE_OPPONENT_LANDMARK, { position: center.clone().add(OPPONENT_STAGE_OFFSET) });
+        setLandmark(BATTLE_CAMERA_LANDMARK, { position: center.clone().add(CAMERA_STAGE_OFFSET) });
+    }
+}
 
     if (loadedGroups.has(worldGroup)) {
         return;
@@ -36,6 +58,7 @@ export function loadHouseClusters(worldGroup, houseRecords, gltfLoader, physics)
             ({ scene }) => {
                 prepareHouseModel(scene, cluster, url);
                 worldGroup.add(scene);
+                registerHouseLandmarks(cluster);
                 setTimeout(() => applyToonMaterial(scene, GLB_TOON_BANDS), 0);
                 if (physics?.world && physics?.rapier) {
                     addPhysicsColliderForHouse(scene, physics);
@@ -192,6 +215,9 @@ function alignToCenter(model, targetCenter) {
     model.position.x += offsetX;
     model.position.z += offsetZ;
     model.updateMatrixWorld(true);
+
+    // Guardar landmark del centro para reusar como referencia del escenario de batalla
+    setLandmark(MAIN_HOUSE_LANDMARK_ID, { position: targetCenter });
 }
 
 function addPhysicsColliderForHouse(model, physics) {

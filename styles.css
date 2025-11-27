@@ -36,6 +36,225 @@ canvas {
     gap: 0.75rem;
 }
 
+#battle-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: none;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 1.5rem 2rem;
+    gap: 1.5rem;
+    font-family: 'Arial', sans-serif;
+    color: #2c1810;
+    z-index: 20;
+}
+
+#battle-overlay:not(.hidden) {
+    display: flex;
+}
+
+.battle-stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.battle-status-layer {
+    flex: 1;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+}
+
+.battle-status-row {
+    display: flex;
+    width: 100%;
+}
+
+.battle-status-row.top {
+    justify-content: flex-end;
+}
+
+.battle-status-row.bottom {
+    justify-content: flex-start;
+}
+
+.battle-pokemon-panel {
+    min-width: 220px;
+    max-width: 280px;
+}
+
+.battle-status-card {
+    background: #fdf6d6;
+    border: 3px solid #3a3c52;
+    border-radius: 12px;
+    padding: 0.45rem 0.75rem;
+    box-shadow: inset -3px -3px 0 #d4c58b;
+}
+
+.battle-status-card.opponent {
+    transform: skewX(-2deg);
+}
+
+.battle-status-card.player {
+    transform: skewX(2deg);
+}
+
+.battle-info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+    font-size: 0.95rem;
+}
+
+.battle-info-hp-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+}
+
+.battle-info-hp-label {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #3a3c52;
+}
+
+.battle-hp-bar {
+    flex: 1;
+    height: 10px;
+    border-radius: 6px;
+    background: #d1d5dd;
+    overflow: hidden;
+    border: 2px solid #3a3c52;
+}
+
+.battle-hp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #59c052, #2d9b27);
+    transition: width 0.3s ease;
+}
+
+.battle-hp-fill[data-state='mid'] {
+    background: linear-gradient(90deg, #f7c948, #d99000);
+}
+
+.battle-hp-fill[data-state='low'] {
+    background: linear-gradient(90deg, #f35a4b, #c62828);
+}
+
+.battle-hp-value {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #3a3c52;
+}
+
+.battle-status-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.75px;
+    text-transform: uppercase;
+    color: #3a3c52;
+}
+
+.battle-ui-row {
+    pointer-events: auto;
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 1.25rem;
+    align-items: stretch;
+}
+
+.battle-message-panel {
+    border: 4px solid #3a3c52;
+    border-radius: 10px;
+    background: #f6eed0;
+    padding: 1rem 1.25rem;
+    box-shadow: inset -4px -4px 0 #d4c58b;
+    display: flex;
+    align-items: center;
+}
+
+.battle-message-panel p {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1f2035;
+}
+
+.battle-action-panel {
+    border: 4px solid #3a3c52;
+    border-radius: 10px;
+    background: #fdf6d6;
+    box-shadow: inset -4px -4px 0 #d4c58b;
+    padding: 0.85rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.battle-action-list,
+.battle-move-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.battle-action-option,
+.battle-move-option {
+    border: 3px solid #3a3c52;
+    border-radius: 8px;
+    padding: 0.65rem 0.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #fffef0;
+    color: #1f2035;
+    min-height: 42px;
+}
+
+.battle-action-option.active,
+.battle-move-option.active {
+    background: #f7d94c;
+    box-shadow: inset -3px -3px 0 #d6b63d;
+}
+
+.battle-move-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.battle-move-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.battle-move-info .label {
+    color: #3a3c52;
+}
+
+.battle-action-list.hidden,
+.battle-move-list.hidden,
+.battle-move-info.hidden {
+    display: none;
+}
+
 .interaction-panel {
     pointer-events: auto;
 }

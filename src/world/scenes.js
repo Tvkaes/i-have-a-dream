@@ -14,6 +14,8 @@ import {
 import { enableOnlyWorldColliders, registerWorldBodies } from '../physics/index.js';
 import { POKEBALL_MODEL_PATH } from '../config/assets.js';
 import { loadCachedGLTF } from '../rendering/assetCache.js';
+import { startMiloBattleSetup } from '../battle/battleTransition.js';
+import { createKidNPC } from './npcs.js';
 
 const POKEBALL_SCALE = 0.04;
 const worlds = new Map();
@@ -115,29 +117,6 @@ function createPokeballMesh() {
         placeholder.removeFromParent();
     });
     return placeholder;
-}
-
-function createKidNPC() {
-    const group = new THREE.Group();
-    group.name = 'KidNPC';
-
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.2, 0.3), new THREE.MeshStandardMaterial({ color: 0xff8c69 }));
-    body.position.y = 0.6;
-    body.castShadow = true;
-    group.add(body);
-
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), new THREE.MeshStandardMaterial({ color: 0xffddb0 }));
-    head.position.y = 1.35;
-    head.castShadow = true;
-    group.add(head);
-
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.25, 16), new THREE.MeshStandardMaterial({ color: 0x3366ff }));
-    cap.rotation.x = Math.PI;
-    cap.position.y = 1.55;
-    cap.castShadow = true;
-    group.add(cap);
-
-    return group;
 }
 
 export function getCurrentWorldId() {
@@ -335,6 +314,7 @@ export function createHouseInterior(houseType, physics = null) {
                 if (!overlay) return;
                 if (choice.id === 'yes') {
                     overlay.showMessage('¡Genial! Imagina que esta sala es una ciudad entera.', 'Milo', 'portraits/kid.png');
+                    startMiloBattleSetup();
                 } else {
                     overlay.showMessage('Está bien, te esperaré por si cambias de idea.', 'Milo', 'portraits/kid.png');
                 }
