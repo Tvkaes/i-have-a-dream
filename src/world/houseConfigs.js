@@ -1,7 +1,7 @@
 // Configuraciones únicas para cada tipo de casa
 export const HOUSE_CONFIGS = {
     green: {
-        roomSize: 8,
+        roomSize: 9,
         wallHeight: 5,
         floorColor: 0x6b8e4a,
         wallColor: 0xd4e8c1,

@@ -599,6 +599,11 @@ function addHouseEntrySign(tileGroup, houseType) {
     tileGroup.userData.entrySign = true;
     const dialogue = INTERACTION_DIALOGUES[HOUSE_DIALOGUE_KEYS[houseType]] ?? INTERACTION_DIALOGUES.signWelcome;
     registerInteractable({
+        id: `house-entry-${houseType}-${tileGroup.userData?.gridX}-${tileGroup.userData?.gridY}`,
+        position,
+        radius: TILE_SIZE,
+        ...dialogue,
+        worldId: 'exterior',
         onChoiceSelect: (choice) => {
             if (choice.id !== 'yes') return;
             const scene = window.__scene__;

@@ -12,6 +12,7 @@ export const TREE_MODEL_ENTRIES = [
 
 export const GRASS_DETAIL_MODEL_PATH = '../../public/grass/grassModel.glb';
 export const ROCK_PLANT_MODEL_PATH = '../../public/grass/rock_and_plants.glb';
+export const POKEBALL_MODEL_PATH = '../../public/pokeball.glb';
 
 export const PLAYER_MODEL_PATH = '../../public/player/player.glb';
 export const PLAYER_ANIMATION_PATHS = Object.freeze({
