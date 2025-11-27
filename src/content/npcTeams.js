@@ -29,6 +29,10 @@ export const NPC_TEAMS = {
                     EV: 0,
                     nature: 'Neutral'
                 },
+                sprite: {
+                    front: '/pokemon/cyndaquill/155.gif',
+                    back: '/pokemon/cyndaquill/back/155.gif'
+                },
                 moveset_level_13: ['Ember', 'Smokescreen', 'Quick Attack', 'Tackle']
             },
             {
@@ -56,6 +60,10 @@ export const NPC_TEAMS = {
                     EV: 0,
                     nature: 'Neutral'
                 },
+                sprite: {
+                    front: '/pokemon/totodile/158.gif',
+                    back: '/pokemon/totodile/back/158.gif'
+                },
                 moveset_level_13: ['Water Gun', 'Bite', 'Scratch', 'Leer']
             },
             {
@@ -82,6 +90,10 @@ export const NPC_TEAMS = {
                     IV: 31,
                     EV: 0,
                     nature: 'Neutral'
+                },
+                sprite: {
+                    front: '/pokemon/gastly/92.gif',
+                    back: '/pokemon/gastly/back/92.gif'
                 },
                 moveset_level_13: ['Hypnosis', 'Lick', 'Mean Look', 'Curse']
             }
@@ -115,6 +127,10 @@ export const PLAYER_POKEMON_CHOICES = [
             EV: 0,
             nature: 'Neutral'
         },
+        sprite: {
+            front: '/pokemon/chikorita/152.gif',
+            back: '/pokemon/chikorita/back/152.gif'
+        },
         moveset_level_13: ['Razor Leaf', 'Tackle', 'Poison Powder', 'Synthesis']
     },
     {
@@ -142,7 +158,42 @@ export const PLAYER_POKEMON_CHOICES = [
             EV: 0,
             nature: 'Neutral'
         },
+        sprite: {
+            front: '/pokemon/squirtle/7.gif',
+            back: '/pokemon/squirtle/back/7.gif'
+        },
         moveset_level_13: ['Water Gun', 'Bite', 'Withdraw', 'Tackle']
+    },
+    {
+        name: 'Pidgey',
+        level: 13,
+        type: ['Normal', 'Flying'],
+        stats: {
+            hp: 38,
+            attack: 21,
+            defense: 20,
+            special_attack: 19,
+            special_defense: 21,
+            speed: 27
+        },
+        base_stats: {
+            hp: 40,
+            attack: 45,
+            defense: 40,
+            special_attack: 35,
+            special_defense: 35,
+            speed: 56
+        },
+        assumptions: {
+            IV: 31,
+            EV: 0,
+            nature: 'Neutral'
+        },
+        sprite: {
+            front: '/pokemon/pidgey/16.gif',
+            back: '/pokemon/pidgey/back/16.gif'
+        },
+        moveset_level_13: ['Gust', 'Quick Attack', 'Sand Attack', 'Tackle']
     },
     {
         name: 'Rattata',
@@ -168,6 +219,10 @@ export const PLAYER_POKEMON_CHOICES = [
             IV: 31,
             EV: 0,
             nature: 'Neutral'
+        },
+        sprite: {
+            front: '/pokemon/ratatta/19.gif',
+            back: '/pokemon/ratatta/back/19.gif'
         },
         moveset_level_13: ['Quick Attack', 'Bite', 'Tackle', 'Focus Energy']
     },
@@ -196,6 +251,10 @@ export const PLAYER_POKEMON_CHOICES = [
             EV: 0,
             nature: 'Neutral'
         },
+        sprite: {
+            front: '/pokemon/pikachu/25.gif',
+            back: '/pokemon/pikachu/back/25.gif'
+        },
         moveset_level_13: ['Thunder Shock', 'Quick Attack', 'Thunder Wave', 'Double Team']
     },
     {
@@ -222,6 +281,10 @@ export const PLAYER_POKEMON_CHOICES = [
             IV: 31,
             EV: 0,
             nature: 'Neutral'
+        },
+        sprite: {
+            front: '/pokemon/eevee/133.gif',
+            back: '/pokemon/eevee/back/133.gif'
         },
         moveset_level_13: ['Quick Attack', 'Sand Attack', 'Covet', 'Growl']
     }

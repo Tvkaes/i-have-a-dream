@@ -3,6 +3,7 @@ import { updatePlayer, updateCamera } from '../player/index.js';
 import { getTreeInstances, getInteractables } from '../world/index.js';
 import { getCurrentWorldId } from '../world/scenes.js';
 import { getFlag } from '../state/gameFlags.js';
+import { handleBattleMenuConfirm, handleBattleMenuCancel } from '../battle/battleSystem.js';
 
 const PHYSICS_IDLE_STEP_INTERVAL = 0.5;
 const ACTION_COLUMN_STEP = 1;
@@ -41,6 +42,18 @@ function handleBattleMenuInput(input) {
     if (consume('arrowright') || consume('d')) {
         moveSelection(1, false);
         consumed = true;
+    }
+
+    if (consume('enter') || consume(' ')) {
+        if (handleBattleMenuConfirm()) {
+            consumed = true;
+        }
+    }
+
+    if (consume('backspace') || consume('escape')) {
+        if (handleBattleMenuCancel()) {
+            consumed = true;
+        }
     }
 
     return consumed;

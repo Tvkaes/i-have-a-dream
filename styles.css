@@ -5,6 +5,38 @@ body {
     font-family: 'Courier New', monospace;
 }
 
+#battle-sprite-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 15;
+}
+
+.battle-sprite-img {
+    position: absolute;
+    width: 140px;
+    height: auto;
+    transform-origin: center bottom;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.35));
+    transition: opacity 0.15s ease;
+}
+
+.battle-sprite-player {
+    bottom: 18vh;
+    left: 18vw;
+}
+
+.battle-sprite-opponent {
+    top: 10vh;
+    right: 18vw;
+}
+
+.battle-sprite-img.hidden {
+    opacity: 0;
+}
+
 #canvas-container {
     position: relative;
     width: 100%;
@@ -43,8 +75,8 @@ canvas {
     display: none;
     flex-direction: column;
     justify-content: space-between;
-    padding: 1.5rem 2rem;
-    gap: 1.5rem;
+    padding: 1rem 1.25rem;
+    gap: 1rem;
     font-family: 'Arial', sans-serif;
     color: #2c1810;
     z-index: 20;
@@ -67,7 +99,7 @@ canvas {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 1rem 2rem;
+    padding: 0.75rem 1.25rem;
 }
 
 .battle-status-row {
@@ -167,37 +199,70 @@ canvas {
 .battle-ui-row {
     pointer-events: auto;
     display: grid;
-    grid-template-columns: 3fr 2fr;
-    gap: 1.25rem;
+    grid-template-columns: minmax(420px, 1.4fr) minmax(220px, 0.6fr);
+    gap: 0.75rem;
     align-items: stretch;
+    width: 100%;
+    max-width: 820px;
+    margin: 0 auto;
 }
 
 .battle-message-panel {
-    border: 4px solid #3a3c52;
-    border-radius: 10px;
-    background: #f6eed0;
-    padding: 1rem 1.25rem;
-    box-shadow: inset -4px -4px 0 #d4c58b;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+    display: flex;
+    height: auto;
+    align-items: stretch;
+    align-self: flex-start;
+}
+
+.battle-message-panel .dialogue-outer-border {
+    width: 100%;
+    height: auto;
+}
+
+.battle-message-panel .dialogue-inner {
+    min-height: 127px;
     display: flex;
     align-items: center;
+    padding: 10px 14px;
+}
+
+.battle-message-panel .dialogue-content {
+    flex: 1;
 }
 
 .battle-message-panel p {
     margin: 0;
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 600;
     color: #1f2035;
 }
 
 .battle-action-panel {
-    border: 4px solid #3a3c52;
-    border-radius: 10px;
-    background: #fdf6d6;
-    box-shadow: inset -4px -4px 0 #d4c58b;
-    padding: 0.85rem 1rem;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    height: 100%;
+}
+
+.battle-action-panel .dialogue-outer-border {
+    width: 100%;
+    height: 100%;
+}
+
+.battle-action-panel .dialogue-inner {
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
 }
 
 .battle-action-list,
@@ -217,13 +282,14 @@ canvas {
 .battle-move-option {
     border: 3px solid #3a3c52;
     border-radius: 8px;
-    padding: 0.65rem 0.5rem;
+    padding: 0.5rem 0.4rem;
     display: flex;
     justify-content: center;
     align-items: center;
     background: #fffef0;
     color: #1f2035;
-    min-height: 42px;
+    min-height: 36px;
+    font-size: 0.85rem;
 }
 
 .battle-action-option.active,

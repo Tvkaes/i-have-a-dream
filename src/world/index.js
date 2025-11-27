@@ -152,6 +152,18 @@ export function clearInteractables() {
     interactables.length = 0;
 }
 
+export function unregisterInteractable(targetId) {
+    if (!targetId) return false;
+    let removed = false;
+    for (let i = interactables.length - 1; i >= 0; i -= 1) {
+        if (interactables[i].id === targetId) {
+            interactables.splice(i, 1);
+            removed = true;
+        }
+    }
+    return removed;
+}
+
 export function registerTreeModel(name, modelScene, { isDefault = false } = {}) {
     if (!modelScene) return;
     modelScene.traverse((child) => {

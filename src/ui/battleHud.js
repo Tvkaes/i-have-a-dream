@@ -280,7 +280,6 @@ export function setupBattleHud() {
             item.dataset.id = move.id ?? move.name ?? String(idx);
             item.innerHTML = `
                 <span class="battle-move-name">${move.label ?? move.name ?? '---'}</span>
-                <span class="battle-move-type">${move.type ?? '--'}</span>
             `;
             actionPanel.moveList.appendChild(item);
         });
@@ -291,12 +290,13 @@ export function setupBattleHud() {
         renderActions(options);
     }
 
-    function setMoveOptions(options = [], selectedIndex = 0, meta = {}) {
+    function setMoveOptions(options = [], selectedIndex = 0, meta = null) {
         moveIndex = Math.max(0, Math.min(options.length - 1, selectedIndex));
-        moveMeta = {
-            pp: meta.pp ?? '--',
-            totalPP: meta.totalPP ?? meta.pp ?? '--',
-            type: meta.type ?? '--'
+        const selected = options[moveIndex] ?? null;
+        moveMeta = meta ?? {
+            pp: selected?.pp ?? '--',
+            totalPP: selected?.totalPP ?? selected?.pp ?? '--',
+            type: selected?.type ?? '--'
         };
         renderMoves(options);
         actionPanel.moveInfo.querySelector('.value').textContent = `${moveMeta.pp}/${moveMeta.totalPP}`;
@@ -312,7 +312,7 @@ export function setupBattleHud() {
     function highlightMove(delta) {
         if (!moveOptions.length) return;
         moveIndex = (moveIndex + delta + moveOptions.length) % moveOptions.length;
-        setMoveOptions(moveOptions, moveIndex, moveMeta);
+        setMoveOptions(moveOptions, moveIndex);
     }
 
     function setMode(nextMode = 'action') {

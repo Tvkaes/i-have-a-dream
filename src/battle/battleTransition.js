@@ -2,11 +2,12 @@ import * as THREE from 'three';
 import { PLAYER_CONFIG, TILE_SIZE } from '../config/index.js';
 import { transitionTo, onAfterTransition } from '../world/transitionService.js';
 import { setFlag } from '../state/gameFlags.js';
+import { beginMiloBattle, resetBattleState } from './battleSystem.js';
 import { createKidNPC } from '../world/npcs.js';
 
 const MILO_BATTLE_REASON = 'milo-battle';
 const MILO_BATTLE_SPAWN = new THREE.Vector3(2, PLAYER_CONFIG.baseHeight, -4);
-const MILO_CAMERA_OFFSET = new THREE.Vector3(2.1, 2.6, 4.4);
+const MILO_CAMERA_OFFSET = new THREE.Vector3(2.85, 3.54, 6.0);
 const MILO_LOOK_OFFSET = new THREE.Vector3(-1.8, -0.6, -1.1);
 const MILO_OPPONENT_DISTANCE = 5 * TILE_SIZE;
 const MILO_OPPONENT_OFFSET = new THREE.Vector3(0, 0, -MILO_OPPONENT_DISTANCE);
@@ -81,12 +82,14 @@ function spawnBattleOpponent(scene, referencePlayer) {
     opponent.rotation.y = Math.PI; // Enfrentar al jugador
     scene.add(opponent);
     activeBattleOpponent = opponent;
+    window.__activeBattleOpponent__ = opponent;
 }
 
 function cleanupBattleOpponent(scene) {
     if (!scene || !activeBattleOpponent) return;
     scene.remove(activeBattleOpponent);
     activeBattleOpponent = null;
+    window.__activeBattleOpponent__ = null;
 }
 
 export function startMiloBattleSetup() {
@@ -111,6 +114,7 @@ export function startMiloBattleSetup() {
         spawnBattleOpponent(payload.scene ?? scene, payload.player ?? player);
         window.__interactionOverlay__?.hideAll?.();
         showBattleHud();
+        beginMiloBattle();
         setFlag('isBattleActive', true);
 
         cleanupAfterTransition?.();
@@ -131,4 +135,5 @@ export function endBattleCleanup() {
     hideBattleHud();
     resetCameraOffsets();
     cleanupBattleOpponent(window.__scene__);
+    resetBattleState();
 }

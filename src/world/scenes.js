@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { PLAYER_CONFIG, TILE_SIZE } from '../config/index.js';
 import { INTERACTION_DIALOGUES } from '../config/dialogues.js';
-import { registerInteractable } from './index.js';
+import { registerInteractable, unregisterInteractable } from './index.js';
 import { HOUSE_CONFIGS } from './houseConfigs.js';
 import {
     createFloor,
@@ -16,6 +16,7 @@ import { POKEBALL_MODEL_PATH } from '../config/assets.js';
 import { loadCachedGLTF } from '../rendering/assetCache.js';
 import { startMiloBattleSetup } from '../battle/battleTransition.js';
 import { createKidNPC } from './npcs.js';
+import { selectPokemon, isTeamComplete, getTeamSummary, getMaxTeamSize, isPokemonSelected } from '../state/playerTeam.js';
 
 const POKEBALL_SCALE = 0.04;
 const worlds = new Map();
@@ -28,6 +29,16 @@ export function registerWorld(id, worldGroup, spawnPosition = null) {
         group: worldGroup,
         spawnPosition: spawnPosition || new THREE.Vector3(0, PLAYER_CONFIG.baseHeight, 0)
     });
+}
+
+function appendTeamSummary(text = '') {
+    const summary = getTeamSummary();
+    if (!summary) return text;
+    return `${text}\n${summary}`;
+}
+
+function normalizePokemonName(name = '') {
+    return String(name).trim().toLowerCase();
 }
 
 function createPokemonTable() {
@@ -303,6 +314,16 @@ export function createHouseInterior(houseType, physics = null) {
         kid.position.set(-3, 0, 0.5);
         group.add(kid);
 
+        const pokeballEntries = new Map();
+        const removePokeballDisplay = (pokemonName) => {
+            if (!pokemonName) return;
+            const entry = pokeballEntries.get(normalizePokemonName(pokemonName));
+            if (!entry) return;
+            entry.mesh?.removeFromParent();
+            unregisterInteractable(entry.interactableId);
+            pokeballEntries.delete(normalizePokemonName(pokemonName));
+        };
+
         registerInteractable({
             id: 'kid-green-house',
             position: new THREE.Vector3(-3, PLAYER_CONFIG.baseHeight, 0.5),
@@ -313,6 +334,14 @@ export function createHouseInterior(houseType, physics = null) {
                 const overlay = window.__interactionOverlay__;
                 if (!overlay) return;
                 if (choice.id === 'yes') {
+                    if (!isTeamComplete()) {
+                        overlay.showMessage(
+                            appendTeamSummary('Primero necesitas elegir 3 Pokémon de la mesa.'),
+                            'Milo',
+                            'portraits/kid.png'
+                        );
+                        return;
+                    }
                     overlay.showMessage('¡Genial! Imagina que esta sala es una ciudad entera.', 'Milo', 'portraits/kid.png');
                     startMiloBattleSetup();
                 } else {
@@ -336,16 +365,64 @@ export function createHouseInterior(houseType, physics = null) {
             registerWorldBodies(physics, 'interior-green', [body], { enabled: false });
         }
 
+        const handlePokeballChoice = (choice, { pokemonName, portrait }) => {
+            const overlay = window.__interactionOverlay__;
+            if (!overlay) return;
+            const speaker = 'Pokébola';
+            if (choice?.id !== 'yes') {
+                overlay.showMessage(
+                    appendTeamSummary(`Está bien, ${pokemonName} seguirá esperando aquí.`),
+                    speaker,
+                    portrait
+                );
+                return;
+            }
+
+            const result = selectPokemon(pokemonName);
+            let message = '';
+            if (result.success) {
+                message = `¡${pokemonName} se unió a tu equipo!`;
+                removePokeballDisplay(pokemonName);
+                if (isTeamComplete()) {
+                    message += '\nYa tienes a tus 3 Pokémon. Habla con Milo para comenzar la batalla.';
+                }
+            } else {
+                switch (result.reason) {
+                    case 'already_selected':
+                        message = `${pokemonName} ya está en tu equipo.`;
+                        break;
+                    case 'team_full':
+                        message = `Tu equipo ya tiene ${getMaxTeamSize()} Pokémon.`;
+                        break;
+                    case 'not_found':
+                        message = 'Esta Pokébola parece estar vacía.';
+                        break;
+                    default:
+                        message = 'No pude registrar esta Pokébola. Intenta de nuevo.';
+                        break;
+                }
+            }
+
+            overlay.showMessage(
+                appendTeamSummary(message),
+                speaker,
+                portrait
+            );
+        };
+
         const pokeballData = [
-            { id: 'poke-chikorita', dialogue: INTERACTION_DIALOGUES.pokeChikorita, position: new THREE.Vector3(2.2, 1.05, -1.2) },
-            { id: 'poke-squirtle', dialogue: INTERACTION_DIALOGUES.pokeSquirtle, position: new THREE.Vector3(2.2, 1.05, 0) },
-            { id: 'poke-pidgey', dialogue: INTERACTION_DIALOGUES.pokePidgey, position: new THREE.Vector3(2.2, 1.05, 1.2) },
-            { id: 'poke-rattata', dialogue: INTERACTION_DIALOGUES.pokeRattata, position: new THREE.Vector3(2.8, 1.05, -1.2) },
-            { id: 'poke-pikachu', dialogue: INTERACTION_DIALOGUES.pokePikachu, position: new THREE.Vector3(2.8, 1.05, 0) },
-            { id: 'poke-eevee', dialogue: INTERACTION_DIALOGUES.pokeEevee, position: new THREE.Vector3(2.8, 1.05, 1.2) }
+            { id: 'poke-chikorita', pokemonName: 'Chikorita', dialogue: INTERACTION_DIALOGUES.pokeChikorita, position: new THREE.Vector3(2.2, 1.05, -1.2) },
+            { id: 'poke-squirtle', pokemonName: 'Squirtle', dialogue: INTERACTION_DIALOGUES.pokeSquirtle, position: new THREE.Vector3(2.2, 1.05, 0) },
+            { id: 'poke-pidgey', pokemonName: 'Pidgey', dialogue: INTERACTION_DIALOGUES.pokePidgey, position: new THREE.Vector3(2.2, 1.05, 1.2) },
+            { id: 'poke-rattata', pokemonName: 'Rattata', dialogue: INTERACTION_DIALOGUES.pokeRattata, position: new THREE.Vector3(2.8, 1.05, -1.2) },
+            { id: 'poke-pikachu', pokemonName: 'Pikachu', dialogue: INTERACTION_DIALOGUES.pokePikachu, position: new THREE.Vector3(2.8, 1.05, 0) },
+            { id: 'poke-eevee', pokemonName: 'Eevee', dialogue: INTERACTION_DIALOGUES.pokeEevee, position: new THREE.Vector3(2.8, 1.05, 1.2) }
         ];
 
-        pokeballData.forEach(({ id, dialogue, position }) => {
+        pokeballData.forEach(({ id, dialogue, position, pokemonName }) => {
+            if (isPokemonSelected(pokemonName)) {
+                return;
+            }
             const pokeball = createPokeballMesh();
             pokeball.position.copy(position);
             group.add(pokeball);
@@ -355,7 +432,13 @@ export function createHouseInterior(houseType, physics = null) {
                 position: new THREE.Vector3(position.x, PLAYER_CONFIG.baseHeight, position.z),
                 radius: TILE_SIZE,
                 worldId: 'interior-green',
-                ...dialogue
+                ...dialogue,
+                onChoiceSelect: (choice) => handlePokeballChoice(choice, { pokemonName, portrait: dialogue.portrait })
+            });
+
+            pokeballEntries.set(normalizePokemonName(pokemonName), {
+                mesh: pokeball,
+                interactableId: id
             });
         });
     }
