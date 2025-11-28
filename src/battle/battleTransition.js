@@ -4,13 +4,18 @@ import { transitionTo, onAfterTransition } from '../world/transitionService.js';
 import { setFlag } from '../state/gameFlags.js';
 import { beginMiloBattle, resetBattleState } from './battleSystem.js';
 import { createKidNPC } from '../world/npcs.js';
+import { getLandmark } from '../world/landmarks.js';
 
 const MILO_BATTLE_REASON = 'milo-battle';
-const MILO_BATTLE_SPAWN = new THREE.Vector3(2, PLAYER_CONFIG.baseHeight, -4);
-const MILO_CAMERA_OFFSET = new THREE.Vector3(2.85, 3.54, 6.0);
-const MILO_LOOK_OFFSET = new THREE.Vector3(-1.8, -0.6, -1.1);
+const BATTLE_PLAYER_LANDMARK = 'battle-player-pos';
+const BATTLE_OPPONENT_LANDMARK = 'battle-opponent-pos';
+const BATTLE_CAMERA_LANDMARK = 'battle-camera-pos';
+
+const FALLBACK_PLAYER_SPAWN = new THREE.Vector3(2, PLAYER_CONFIG.baseHeight, -4);
+const FALLBACK_CAMERA_OFFSET = new THREE.Vector3(3.5, 4, 8);
+const FALLBACK_LOOK_OFFSET = new THREE.Vector3(-2, -0.2, -3);
 const MILO_OPPONENT_DISTANCE = 5 * TILE_SIZE;
-const MILO_OPPONENT_OFFSET = new THREE.Vector3(0, 0, -MILO_OPPONENT_DISTANCE);
+const FALLBACK_OPPONENT_OFFSET = new THREE.Vector3(0, 0, -MILO_OPPONENT_DISTANCE);
 
 let cleanupAfterTransition = null;
 let activeBattleOpponent = null;
@@ -48,7 +53,7 @@ function resetCameraOffsets() {
 
 function movePlayerToSpawn(player, physics, spawn) {
     if (!player) return;
-    const target = spawn.clone();
+    const target = spawn?.clone?.() ?? FALLBACK_PLAYER_SPAWN.clone();
     player.position.copy(target);
     player.rotation.y = 0;
 
@@ -71,15 +76,20 @@ function hideBattleHud() {
     battleHud?.hide?.();
 }
 
-function spawnBattleOpponent(scene, referencePlayer) {
+function spawnBattleOpponent(scene, referencePlayer, opponentSpawnPosition = null) {
     if (!scene || !referencePlayer) return;
     cleanupBattleOpponent(scene);
     const opponent = createKidNPC();
     opponent.name = 'MiloBattleNPC';
-    const spawnPosition = referencePlayer.position.clone().add(MILO_OPPONENT_OFFSET);
+    const spawnPosition = opponentSpawnPosition?.clone?.()
+        ?? referencePlayer.position.clone().add(FALLBACK_OPPONENT_OFFSET);
     spawnPosition.y = PLAYER_CONFIG.baseHeight;
     opponent.position.copy(spawnPosition);
-    opponent.rotation.y = Math.PI; // Enfrentar al jugador
+    if (referencePlayer.position) {
+        opponent.lookAt(referencePlayer.position.clone().setY(spawnPosition.y));
+    } else {
+        opponent.rotation.y = Math.PI; // fallback para enfrentar al jugador
+    }
     scene.add(opponent);
     activeBattleOpponent = opponent;
     window.__activeBattleOpponent__ = opponent;
@@ -108,10 +118,22 @@ export function startMiloBattleSetup() {
             return;
         }
 
-        movePlayerToSpawn(payload.player ?? player, payload.physics ?? physics, MILO_BATTLE_SPAWN);
-        applyCameraOffset(MILO_CAMERA_OFFSET);
-        applyCameraLookOffset(MILO_LOOK_OFFSET);
-        spawnBattleOpponent(payload.scene ?? scene, payload.player ?? player);
+        const playerLandmark = getLandmark(BATTLE_PLAYER_LANDMARK);
+        const opponentLandmark = getLandmark(BATTLE_OPPONENT_LANDMARK);
+        const cameraLandmark = getLandmark(BATTLE_CAMERA_LANDMARK);
+
+        movePlayerToSpawn(
+            payload.player ?? player,
+            payload.physics ?? physics,
+            playerLandmark?.position ?? FALLBACK_PLAYER_SPAWN
+        );
+        applyCameraOffset(cameraLandmark?.position ?? FALLBACK_CAMERA_OFFSET);
+        applyCameraLookOffset(cameraLandmark?.meta?.lookOffset ?? FALLBACK_LOOK_OFFSET);
+        spawnBattleOpponent(
+            payload.scene ?? scene,
+            payload.player ?? player,
+            opponentLandmark?.position ?? null
+        );
         window.__interactionOverlay__?.hideAll?.();
         showBattleHud();
         window.__triggerBattleCleanup__ = (result) => {

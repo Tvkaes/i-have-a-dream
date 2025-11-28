@@ -232,9 +232,19 @@ export function setupBattleHud() {
         panel.nameEl.textContent = data.name ?? '---';
         panel.levelEl.textContent = data.level ? `Lv ${data.level}` : 'Lv --';
         updateHp(panel, data.currentHp ?? data.hp ?? 0, data.maxHp ?? data.hp ?? 1);
-        const status = data.status ?? 'OK';
-        panel.status.textContent = status;
-        panel.status.dataset.state = status.toLowerCase();
+        const rawStatus = (data.status ?? 'OK') ?? '';
+        const normalizedStatus = String(rawStatus).trim();
+        const shouldShowStatus = normalizedStatus && normalizedStatus.toUpperCase() !== 'OK';
+
+        if (shouldShowStatus) {
+            panel.status.textContent = normalizedStatus;
+            panel.status.dataset.state = normalizedStatus.toLowerCase();
+            panel.status.classList.remove('hidden');
+        } else {
+            panel.status.textContent = '';
+            panel.status.dataset.state = 'none';
+            panel.status.classList.add('hidden');
+        }
     }
 
     function setPokemonPanels({ player = null, opponent = null } = {}) {

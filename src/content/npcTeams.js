@@ -32,7 +32,7 @@ export const NPC_TEAMS = {
                 sprite: {
                     front:{
                         image:'/pokemon/cyndaquill/cyndaquill_front.png',
-                        frames:37,
+                        frames:84,
                         width: 44,
                         height: 37,
                     },
@@ -248,8 +248,8 @@ export const PLAYER_POKEMON_CHOICES = [
             },
             back:{
                 image:'/pokemon/pidgey/pidgey_back.png',
-                frames:29,
-                width: 43,
+                frames:20,
+                width: 47,
                 height: 48,
             }
         },
