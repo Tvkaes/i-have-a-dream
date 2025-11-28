@@ -224,9 +224,17 @@ function placePlayerPokemon(mesh, playerEntity, opponentEntity) {
         fallbackForward = new THREE.Vector3(0, 0, -1).applyQuaternion(playerEntity.quaternion);
     }
     const direction = resolveDirection(playerEntity.position, opponentEntity?.position, fallbackForward);
-    direction.multiplyScalar(TILE_SIZE);
+    const right = new THREE.Vector3(direction.z, 0, -direction.x);
+    if (right.lengthSq() < 1e-6) {
+        right.set(1, 0, 0);
+    } else {
+        right.normalize();
+    }
 
-    const anchor = playerEntity.position.clone().add(direction);
+    const forwardStep = direction.clone().multiplyScalar(TILE_SIZE);
+    const leftStep = right.clone().multiplyScalar(-TILE_SIZE);
+
+    const anchor = playerEntity.position.clone().add(forwardStep).add(leftStep);
     anchor.y = PLAYER_CONFIG.baseHeight + PLAYER_HEIGHT_OFFSET;
     mesh.position.copy(anchor);
 
@@ -246,9 +254,17 @@ function placeOpponentPokemon(mesh, playerEntity, opponentEntity) {
         fallbackForward = new THREE.Vector3(0, 0, -1).applyQuaternion(opponentEntity.quaternion);
     }
     const direction = resolveDirection(opponentEntity.position, playerEntity?.position, fallbackForward);
-    direction.multiplyScalar(TILE_SIZE);
+    const right = new THREE.Vector3(direction.z, 0, -direction.x);
+    if (right.lengthSq() < 1e-6) {
+        right.set(1, 0, 0);
+    } else {
+        right.normalize();
+    }
 
-    const anchor = opponentEntity.position.clone().add(direction);
+    const forwardStep = direction.clone().multiplyScalar(TILE_SIZE);
+    const leftStep = right.clone().multiplyScalar(-TILE_SIZE);
+
+    const anchor = opponentEntity.position.clone().add(forwardStep).add(leftStep);
     anchor.y = PLAYER_CONFIG.baseHeight + OPPONENT_HEIGHT_OFFSET;
     mesh.position.copy(anchor);
 
