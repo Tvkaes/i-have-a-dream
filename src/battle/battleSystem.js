@@ -2,6 +2,7 @@ import { NPC_TEAMS } from '../content/npcTeams.js';
 import { getPlayerTeam } from '../state/playerTeam.js';
 import { buildMoveEntry } from './moveData.js';
 import { setWorldPokemonSprites, clearWorldPokemonSprites } from './battleWorldSprites.js';
+import { getTypeMultiplier, isStabMove, normalizeTypes } from './typeChart.js';
 
 const DEFAULT_ACTION_OPTIONS = Object.freeze([
     { id: 'fight', label: 'Luchar' },
@@ -18,7 +19,26 @@ const BATTLE_PHASES = Object.freeze({
     FINISHED: 'finished'
 });
 
+const AI_CONFIG = Object.freeze({
+    lowHpThreshold: 0.35,
+    lowHpStatusBonus: 25,
+    aggressiveStatusBonus: 20,
+    switchScoreMargin: 22,
+    superEffectiveStreakThreshold: 2,
+    proactiveSwitchEnabled: true
+});
+
 const DEFAULT_TURN_DELAY_MS = 900;
+const STATUS_MOVE_BONUS = Object.freeze({
+    smokescreen: 18,
+    sandattack: 15,
+    leer: 12,
+    growl: 10,
+    hypnosis: 25,
+    thunderwave: 25,
+    curse: 22,
+    meanlook: 20
+});
 let battleState = null;
 
 function getHud() {
@@ -236,6 +256,7 @@ function handleMoveSelection(selection) {
         hud.setMessage?.(`No quedan PP para ${move.name}.`);
         return true;
     }
+    recordPlayerMoveSelection(move);
     processPlayerMove(selection.moveIndex);
     return true;
 }
@@ -255,13 +276,53 @@ function getAvailableMoves(pokemon) {
     return pokemon.moves.filter((move) => (move.currentPP ?? move.pp ?? 0) > 0);
 }
 
+function evaluateMoveForOpponent(move, attacker, defender) {
+    if (!move || !attacker || !defender) return -Infinity;
+    const basePower = Math.max(0, move.power ?? 0);
+    const accuracyFactor = clamp((move.accuracy ?? 100) / 100, 0.1, 1);
+    const stabBonus = isStabMove(move.type, attacker.type) ? 1.5 : 1;
+    const effectiveness = getTypeMultiplier(move.type, defender.type);
+    const priorityBonus = (move.priority ?? 0) * 15;
+    const statusBonus = basePower === 0 ? (STATUS_MOVE_BONUS[move.id] ?? 5) : 0;
+    return basePower * stabBonus * effectiveness * accuracyFactor + priorityBonus + statusBonus;
+}
+
+function selectBestMove(attacker, defender) {
+    const availableMoves = getAvailableMoves(attacker);
+    if (!availableMoves.length) return null;
+    const preferStatus = shouldPreferStatusMove(attacker, defender);
+    const targetHasFixedStatus = defender?.status && defender.status !== 'OK';
+    let bestMove = null;
+    let bestScore = -Infinity;
+    availableMoves.forEach((move) => {
+        let score = evaluateMoveForOpponent(move, attacker, defender);
+        const hasStatusEffect = Boolean(move?.statusEffect);
+        const canApplyStatus = hasStatusEffect && canApplyStatusEffectOnTarget(move, defender);
+        if (preferStatus) {
+            if (canApplyStatus) {
+                score += AI_CONFIG.aggressiveStatusBonus;
+            } else if (!hasStatusEffect) {
+                score -= 10;
+            }
+        } else if (hasStatusEffect && !canApplyStatus) {
+            score -= 15;
+        } else if (!preferStatus && hasStatusEffect && targetHasFixedStatus && move.statusEffect?.type !== 'CONFUSED') {
+            score -= 12;
+        }
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestMove = move;
+        }
+    });
+    return bestMove ?? availableMoves[0];
+}
+
 function chooseOpponentAction() {
     const opponent = getActiveOpponentPokemon();
-    if (!opponent) return null;
-    const availableMoves = getAvailableMoves(opponent);
-    const move = availableMoves.length
-        ? availableMoves[Math.floor(Math.random() * availableMoves.length)]
-        : opponent.moves?.[0] ?? null;
+    const target = getActivePlayerPokemon();
+    if (!opponent || !target) return null;
+    const move = selectBestMove(opponent, target);
     return move
         ? {
               side: 'opponent',
@@ -293,7 +354,8 @@ async function resolveTurn(playerMoveIndex) {
     playerMove.currentPP = clamp((playerMove.currentPP ?? playerMove.pp ?? 1) - 1, 0, playerMove.pp ?? 1);
     hud?.setMoveOptions?.(buildMoveOptions(playerPokemon), playerMoveIndex);
 
-    const opponentAction = chooseOpponentAction();
+    const opponentSwitched = await maybeSwitchOpponentBeforeTurn();
+    const opponentAction = opponentSwitched ? null : chooseOpponentAction();
     const playerAction = {
         side: 'player',
         move: playerMove,
@@ -341,23 +403,44 @@ async function executeMove(attacker, defender, move, actingSide) {
     updateHudPanels();
     await wait();
 
+    const canAct = await handlePreMoveStatus(attacker, actingSide);
+    if (!canAct) {
+        return { defenderFainted: false };
+    }
+
     if (!passesAccuracy(move.accuracy)) {
         hud?.setMessage?.(`${attacker.name} falló.`);
         await wait();
         return { defenderFainted: false };
     }
 
-    if (!move.power || move.power <= 0) {
+    const statusApplied = await applyStatusEffect(attacker, defender, move);
+    if ((!move.power || move.power <= 0) && !statusApplied) {
         hud?.setMessage?.('El movimiento aún no tiene efecto implementado.');
         await wait();
         return { defenderFainted: false };
     }
+    if (!move.power || move.power <= 0) {
+        return { defenderFainted: false };
+    }
 
-    const damage = calculateDamage(attacker, defender, move);
+    const { damage, effectiveness } = calculateDamage(attacker, defender, move);
     applyDamage(defender, damage);
     updateHudPanels();
     hud?.setMessage?.(`${defender.name} recibió ${damage} de daño.`);
     await wait();
+
+    if (actingSide === 'player') {
+        recordPlayerEffectiveness(effectiveness, move);
+    }
+
+    if (effectiveness > 1.01) {
+        hud?.setMessage?.('¡Es muy eficaz!');
+        await wait(400);
+    } else if (effectiveness < 1) {
+        hud?.setMessage?.('No es muy eficaz...');
+        await wait(400);
+    }
 
     if (defender.currentHp <= 0) {
         hud?.setMessage?.(`${defender.name} quedó fuera de combate.`);
@@ -374,6 +457,55 @@ function passesAccuracy(accuracy = 100) {
     return roll <= clamp(accuracy, 1, 100);
 }
 
+async function handlePreMoveStatus(pokemon, actingSide) {
+    if (!pokemon) return true;
+    const hud = getHud();
+
+    if (pokemon.status === 'SLEEP') {
+        pokemon.statusTurns = Math.max(0, (pokemon.statusTurns ?? 0) - 1);
+        if (pokemon.statusTurns <= 0) {
+            pokemon.status = 'OK';
+            hud?.setMessage?.(`${pokemon.name} despertó.`);
+            await wait(400);
+            return true;
+        }
+        hud?.setMessage?.(`${pokemon.name} sigue dormido.`);
+        await wait(600);
+        return false;
+    }
+
+    if (pokemon.status === 'PARALYZED') {
+        if (Math.random() < 0.25) {
+            hud?.setMessage?.(`${pokemon.name} está paralizado y no puede moverse.`);
+            await wait(600);
+            return false;
+        }
+    }
+
+    if (pokemon.confused) {
+        pokemon.confusionTurns = Math.max(0, (pokemon.confusionTurns ?? 0) - 1);
+        if (pokemon.confusionTurns <= 0) {
+            pokemon.confused = false;
+            hud?.setMessage?.(`${pokemon.name} recuperó la claridad.`);
+            await wait(400);
+        } else if (Math.random() < 1 / 3) {
+            hud?.setMessage?.(`${pokemon.name} está confundido y se golpeó a sí mismo.`);
+            await wait(400);
+            const selfDamage = calculateConfusionDamage(pokemon);
+            applyDamage(pokemon, selfDamage);
+            updateHudPanels();
+            await wait(400);
+            if (pokemon.currentHp <= 0) {
+                const faintSide = actingSide === 'player' ? 'player' : 'opponent';
+                await handleFaint(pokemon, faintSide);
+            }
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function calculateDamage(attacker, defender, move) {
     const attackerLevel = attacker.level ?? 1;
     const attackStat = attacker.stats?.attack ?? attacker.stats?.special_attack ?? 10;
@@ -381,11 +513,73 @@ function calculateDamage(attacker, defender, move) {
     const levelFactor = (2 * attackerLevel) / 5 + 2;
     const base = ((levelFactor * move.power * (attackStat / Math.max(1, defenseStat))) / 50) + 2;
     const randomFactor = 0.85 + Math.random() * 0.15;
-    return Math.max(1, Math.floor(base * randomFactor));
+    const effectiveness = getTypeMultiplier(move.type, defender.type);
+    const damage = Math.max(1, Math.floor(base * randomFactor * effectiveness));
+    return { damage, effectiveness };
 }
 
 function applyDamage(target, amount) {
     target.currentHp = clamp((target.currentHp ?? target.maxHp ?? 1) - amount, 0, target.maxHp ?? 1);
+}
+
+function calculateConfusionDamage(pokemon) {
+    const attackStat = pokemon.stats?.attack ?? 10;
+    return Math.max(1, Math.floor(attackStat / 2));
+}
+
+async function applyStatusEffect(attacker, defender, move) {
+    const effect = move?.statusEffect;
+    if (!effect) return false;
+    const target = effect.self ? attacker : defender;
+    if (!target) return false;
+    if (effect.type !== 'CONFUSED' && target.status && target.status !== 'OK') {
+        return false;
+    }
+    if (effect.type === 'CONFUSED' && target.confused) {
+        return false;
+    }
+
+    if (Math.random() > (effect.chance ?? 1)) {
+        return false;
+    }
+
+    const hud = getHud();
+    switch (effect.type) {
+        case 'PARALYZED':
+            target.status = 'PARALYZED';
+            target.statusTurns = null;
+            hud?.setMessage?.(`${target.name} quedó paralizado.`);
+            break;
+        case 'SLEEP':
+            target.status = 'SLEEP';
+            target.statusTurns = randomInt(effect.minTurns ?? 1, effect.maxTurns ?? 3);
+            hud?.setMessage?.(`${target.name} se quedó dormido.`);
+            break;
+        case 'CONFUSED':
+            target.confused = true;
+            target.confusionTurns = randomInt(effect.minTurns ?? 2, effect.maxTurns ?? 4);
+            hud?.setMessage?.(`${target.name} se confundió.`);
+            break;
+        default:
+            return false;
+    }
+    await wait(400);
+    return true;
+}
+
+function randomInt(min, max) {
+    const low = Math.ceil(Math.min(min, max));
+    const high = Math.floor(Math.max(min, max));
+    return Math.floor(Math.random() * (high - low + 1)) + low;
+}
+
+function canApplyStatusEffectOnTarget(move, defender) {
+    const effect = move?.statusEffect;
+    if (!effect || !defender) return false;
+    if (effect.type === 'CONFUSED') {
+        return !defender.confused;
+    }
+    return !defender.status || defender.status === 'OK';
 }
 
 async function handleFaint(faintedPokemon, faintedSide) {
@@ -405,11 +599,68 @@ async function handleFaint(faintedPokemon, faintedSide) {
     return { defenderFainted: true };
 }
 
+function computePokemonMatchupScore(attacker, defender) {
+    if (!attacker || !defender) return -Infinity;
+    const availableMoves = getAvailableMoves(attacker);
+    if (!availableMoves.length) return -Infinity;
+    return Math.max(
+        ...availableMoves.map((move) => evaluateMoveForOpponent(move, attacker, defender))
+    );
+}
+
+function computeAverageMatchupScore(attacker, defenders = []) {
+    if (!defenders.length) return 0;
+    const livingDefenders = defenders.filter((d) => d?.currentHp > 0);
+    if (!livingDefenders.length) return 0;
+    const total = livingDefenders.reduce((sum, defender) => sum + computePokemonMatchupScore(attacker, defender), 0);
+    return total / livingDefenders.length;
+}
+
+function reorderOpponentTeam(playerTeam, opponentTeam) {
+    if (!Array.isArray(opponentTeam) || !opponentTeam.length) return opponentTeam;
+    if (!Array.isArray(playerTeam) || !playerTeam.length) return opponentTeam;
+    return [...opponentTeam].sort((a, b) => {
+        const bScore = computeAverageMatchupScore(b, playerTeam);
+        const aScore = computeAverageMatchupScore(a, playerTeam);
+        return bScore - aScore;
+    });
+}
+
+function findBestOpponentIndex(targetPlayerPokemon, { excludeActive = false } = {}) {
+    if (!battleState?.opponentTeam?.length) return { index: -1, score: -Infinity };
+    let bestIndex = -1;
+    let bestScore = -Infinity;
+    battleState.opponentTeam.forEach((pokemon, index) => {
+        if (!pokemon || pokemon.currentHp <= 0) return;
+        if (excludeActive && index === battleState.opponentIndex) return;
+        const score = computePokemonMatchupScore(pokemon, targetPlayerPokemon || getActivePlayerPokemon());
+        if (score > bestScore) {
+            bestScore = score;
+            bestIndex = index;
+        }
+    });
+    return { index: bestIndex, score: bestScore };
+}
+
+function selectBestOpponentReplacement(targetPlayerPokemon = null) {
+    const { index } = findBestOpponentIndex(targetPlayerPokemon);
+    if (index >= 0) {
+        battleState.opponentIndex = index;
+        return true;
+    }
+    return false;
+}
+
 function advanceToNextPokemon(side) {
-    const teamKey = side === 'player' ? 'playerTeam' : 'opponentTeam';
-    const indexKey = side === 'player' ? 'playerIndex' : 'opponentIndex';
-    const team = battleState?.[teamKey];
-    if (!battleState || !team) return false;
+    if (!battleState) return false;
+    if (side === 'opponent') {
+        return selectBestOpponentReplacement(getActivePlayerPokemon());
+    }
+
+    const teamKey = 'playerTeam';
+    const indexKey = 'playerIndex';
+    const team = battleState[teamKey];
+    if (!team) return false;
 
     for (let i = battleState[indexKey]; i < team.length; i += 1) {
         if (team[i]?.currentHp > 0) {
@@ -418,6 +669,78 @@ function advanceToNextPokemon(side) {
         }
     }
     return false;
+}
+
+function initAIMemory() {
+    return {
+        playerMoveCounts: Object.create(null),
+        playerSuperEffectiveStreak: 0
+    };
+}
+
+function shouldPreferStatusMove(attacker, defender) {
+    if (!battleState?.aiMemory || !attacker || !defender) return false;
+    const memory = battleState.aiMemory;
+    const streakTrigger = (memory.playerSuperEffectiveStreak ?? 0) >= AI_CONFIG.superEffectiveStreakThreshold;
+    const lowHp = (attacker.currentHp ?? 0) / Math.max(1, attacker.maxHp ?? 1) <= AI_CONFIG.lowHpThreshold;
+    const defenderStatusFree = !defender.status || defender.status === 'OK';
+    const defenderNotConfused = !defender.confused;
+    return (streakTrigger || lowHp) && (defenderStatusFree || defenderNotConfused);
+}
+
+function recordPlayerMoveSelection(move) {
+    if (!battleState?.aiMemory || !move) return;
+    const id = move.id || move.name || 'unknown';
+    battleState.aiMemory.playerMoveCounts[id] = (battleState.aiMemory.playerMoveCounts[id] ?? 0) + 1;
+}
+
+function recordPlayerEffectiveness(effectiveness, move) {
+    if (!battleState?.aiMemory) return;
+    if (effectiveness >= 2) {
+        battleState.aiMemory.playerSuperEffectiveStreak += 1;
+    } else if (effectiveness < 1) {
+        battleState.aiMemory.playerSuperEffectiveStreak = Math.max(
+            0,
+            (battleState.aiMemory.playerSuperEffectiveStreak ?? 0) - 1
+        );
+    } else {
+        battleState.aiMemory.playerSuperEffectiveStreak = 0;
+    }
+    if (move?.id) {
+        battleState.aiMemory.playerMoveCounts[move.id] = (battleState.aiMemory.playerMoveCounts[move.id] ?? 0) + 1;
+    }
+}
+
+async function maybeSwitchOpponentBeforeTurn() {
+    if (!AI_CONFIG.proactiveSwitchEnabled || !battleState) return false;
+    const opponent = getActiveOpponentPokemon();
+    const player = getActivePlayerPokemon();
+    if (!opponent || !player) return false;
+
+    const currentScore = computePokemonMatchupScore(opponent, player);
+    const { index: bestIndex, score: bestScore } = findBestOpponentIndex(player, { excludeActive: true });
+    const memory = battleState.aiMemory ?? initAIMemory();
+    battleState.aiMemory ??= memory;
+
+    const lowHp = (opponent.currentHp ?? 0) / Math.max(1, opponent.maxHp ?? 1) <= AI_CONFIG.lowHpThreshold;
+    const streakTrigger = (memory.playerSuperEffectiveStreak ?? 0) >= AI_CONFIG.superEffectiveStreakThreshold;
+    const matchupTrigger = bestIndex >= 0 && bestScore - (currentScore ?? 0) >= AI_CONFIG.switchScoreMargin;
+
+    if (!matchupTrigger && !lowHp && !streakTrigger) {
+        return false;
+    }
+    if (bestIndex < 0) {
+        return false;
+    }
+
+    battleState.opponentIndex = bestIndex;
+    memory.playerSuperEffectiveStreak = 0;
+    const hud = getHud();
+    hud?.setMessage?.('Milo cambia de Pokémon para tomar ventaja.');
+    await wait(600);
+    updateHudPanels();
+    await updateBattleSprites();
+    return true;
 }
 
 async function finishBattle(result) {
@@ -465,12 +788,21 @@ export function beginMiloBattle() {
         return;
     }
 
+    const orderedOpponentTeam = reorderOpponentTeam(playerTeam, npcTeam);
+
     battleState = {
         playerTeam,
-        opponentTeam: npcTeam,
+        opponentTeam: orderedOpponentTeam,
         playerIndex: 0,
         opponentIndex: 0,
-        phase: BATTLE_PHASES.PLAYER_CHOICE
+        phase: BATTLE_PHASES.PLAYER_CHOICE,
+        aiPlan: {
+            playerTeamSummary: playerTeam.map((pokemon) => ({
+                name: pokemon.name,
+                types: normalizeTypes(pokemon.type)
+            }))
+        },
+        aiMemory: initAIMemory()
     };
 
     updateHudPanels();
