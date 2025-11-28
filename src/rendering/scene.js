@@ -11,6 +11,7 @@ import { setupInteractionOverlay } from '../ui/interactionOverlay.js';
 import { setupBattleHud } from '../ui/battleHud.js';
 import { setupLoadingScreen } from '../ui/loadingScreen.js';
 import { startRenderLoop } from './renderLoop.js';
+import { LeavesEmitter } from '../effects/leavesEmitter.js';
 import {
     getCanvasContainer,
     createSceneInstance,
@@ -78,6 +79,14 @@ async function initScene() {
     const playerState = createPlayerState();
     const clock = new THREE.Clock();
 
+    const leavesEmitter = new LeavesEmitter(scene, {
+        count: 150,
+        areaSize: new THREE.Vector2(24, 24),
+        spawnHeight: 7,
+        groundY: PLAYER_CONFIG.baseHeight,
+        origin: new THREE.Vector3(0, PLAYER_CONFIG.baseHeight + 5, 0)
+    });
+
     const stopRenderLoop = startRenderLoop({
         renderer,
         scene,
@@ -89,7 +98,8 @@ async function initScene() {
         physicsManager,
         clock,
         handPaintedFX,
-        interactionOverlay
+        interactionOverlay,
+        ambientEffects: { leavesEmitter }
     });
 
     const detachLoadingCallbacks = setupLoadingCallbacks(loadingManager, enablePostProcess, postProcessFallback, {
@@ -105,6 +115,7 @@ async function initScene() {
         detachLoadingCallbacks?.();
         removeResizeHandler?.();
         disposePostProcess?.();
+        leavesEmitter?.dispose?.();
         renderer.setAnimationLoop(null);
         renderer.dispose();
         disposePhysicsContext(physics);

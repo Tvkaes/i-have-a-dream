@@ -181,7 +181,8 @@ export function startRenderLoop({
     physicsManager,
     clock,
     handPaintedFX,
-    interactionOverlay
+    interactionOverlay,
+    ambientEffects = {}
 }) {
     const { camera, cameraTarget, lookTarget, offset } = cameraContext;
     camera.layers.set(0);
@@ -241,6 +242,11 @@ export function startRenderLoop({
             activeInteractable
         });
         activeInteractable = interactable;
+
+        ambientEffects.leavesEmitter?.update?.(delta, elapsed, {
+            playerPosition: player.position
+        });
+
         if (handPaintedFX?.enabled) {
             handPaintedFX.render(scene, camera, elapsed);
         } else {
