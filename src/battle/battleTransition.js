@@ -4,13 +4,9 @@ import { transitionTo, onAfterTransition } from '../world/transitionService.js';
 import { setFlag } from '../state/gameFlags.js';
 import { beginMiloBattle, resetBattleState } from './battleSystem.js';
 import { createKidNPC } from '../world/npcs.js';
-import { getLandmark } from '../world/landmarks.js';
+import { getBattleLandmarks, BATTLE_CAMERA_LANDMARK } from './battleLandmarks.js';
 
 const MILO_BATTLE_REASON = 'milo-battle';
-const BATTLE_PLAYER_LANDMARK = 'battle-player-pos';
-const BATTLE_OPPONENT_LANDMARK = 'battle-opponent-pos';
-const BATTLE_CAMERA_LANDMARK = 'battle-camera-pos';
-
 const FALLBACK_PLAYER_SPAWN = new THREE.Vector3(2, PLAYER_CONFIG.baseHeight, -4);
 const FALLBACK_CAMERA_OFFSET = new THREE.Vector3(3.5, 4, 8);
 const FALLBACK_LOOK_OFFSET = new THREE.Vector3(-2, -0.2, -3);
@@ -20,23 +16,22 @@ const FALLBACK_OPPONENT_OFFSET = new THREE.Vector3(0, 0, -MILO_OPPONENT_DISTANCE
 let cleanupAfterTransition = null;
 let activeBattleOpponent = null;
 
-function applyCameraOffset(offsetVector) {
+function applyBattleCameraConfig(landmark) {
     const cameraContext = window.__cameraContext__;
-    if (!cameraContext?.offset) return;
+    if (!cameraContext) return;
+    const offset = landmark?.position ?? FALLBACK_CAMERA_OFFSET;
+    const lookOffset = landmark?.meta?.lookOffset ?? FALLBACK_LOOK_OFFSET;
+
     if (!cameraContext.defaultOffset) {
         cameraContext.defaultOffset = cameraContext.offset.clone();
     }
-    cameraContext.offset.copy(offsetVector);
-    cameraContext.activeMode = 'battle';
-}
-
-function applyCameraLookOffset(offsetVector) {
-    const cameraContext = window.__cameraContext__;
-    if (!cameraContext?.lookOffset) return;
     if (!cameraContext.defaultLookOffset) {
         cameraContext.defaultLookOffset = cameraContext.lookOffset.clone();
     }
-    cameraContext.lookOffset.copy(offsetVector);
+
+    cameraContext.offset.copy(offset);
+    cameraContext.lookOffset.copy(lookOffset);
+    cameraContext.activeMode = 'battle';
 }
 
 function resetCameraOffsets() {
@@ -118,17 +113,14 @@ export function startMiloBattleSetup() {
             return;
         }
 
-        const playerLandmark = getLandmark(BATTLE_PLAYER_LANDMARK);
-        const opponentLandmark = getLandmark(BATTLE_OPPONENT_LANDMARK);
-        const cameraLandmark = getLandmark(BATTLE_CAMERA_LANDMARK);
+        const { player: playerLandmark, opponent: opponentLandmark, camera: cameraLandmark } = getBattleLandmarks();
 
         movePlayerToSpawn(
             payload.player ?? player,
             payload.physics ?? physics,
             playerLandmark?.position ?? FALLBACK_PLAYER_SPAWN
         );
-        applyCameraOffset(cameraLandmark?.position ?? FALLBACK_CAMERA_OFFSET);
-        applyCameraLookOffset(cameraLandmark?.meta?.lookOffset ?? FALLBACK_LOOK_OFFSET);
+        applyBattleCameraConfig(cameraLandmark);
         spawnBattleOpponent(
             payload.scene ?? scene,
             payload.player ?? player,

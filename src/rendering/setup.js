@@ -17,8 +17,8 @@ export function getCanvasContainer() {
 
 export function createSceneInstance() {
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb);
-    scene.fog = new THREE.Fog(0x87ceeb, 35, 70);
+    scene.background = new THREE.Color(0x000000);
+    scene.fog = new THREE.Fog(0x000000, 35, 70);
     return scene;
 }
 

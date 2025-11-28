@@ -12,22 +12,19 @@ import {
 import { applyToonMaterial } from './materials.js';
 import { scratch } from '../shared/index.js';
 import { setLandmark } from './landmarks.js';
-
-const BATTLE_STAGE_CENTER = new THREE.Vector3(0, PLAYER_CONFIG.baseHeight, 0);
-const BATTLE_STAGE_FORWARD = new THREE.Vector3(0, 0, -1);
-const BATTLE_STAGE_RIGHT = new THREE.Vector3(1, 0, 0);
-const PLAYER_LATERAL_OFFSET_TILES = -3;
-const PLAYER_FORWARD_OFFSET_TILES = 0;
-const MILO_FORWARD_DISTANCE_TILES = 7;
-const MILO_LATERAL_DELTA_TILES = 1;
-const OPPONENT_LATERAL_OFFSET_TILES = PLAYER_LATERAL_OFFSET_TILES + MILO_LATERAL_DELTA_TILES;
-const OPPONENT_FORWARD_OFFSET_TILES = PLAYER_FORWARD_OFFSET_TILES + MILO_FORWARD_DISTANCE_TILES;
-const CAMERA_STAGE_OFFSET = new THREE.Vector3(0, 4.5, 7);
-const CAMERA_LOOK_OFFSET = new THREE.Vector3(0, 0.5, -6);
+import {
+    BATTLE_STAGE_CENTER,
+    BATTLE_STAGE_FORWARD,
+    BATTLE_STAGE_RIGHT,
+    PLAYER_LATERAL_OFFSET_TILES,
+    PLAYER_FORWARD_OFFSET_TILES,
+    OPPONENT_LATERAL_OFFSET_TILES,
+    OPPONENT_FORWARD_OFFSET_TILES,
+    CAMERA_STAGE_OFFSET,
+    CAMERA_LOOK_OFFSET
+} from '../battle/battleConfig.js';
+import { setBattleLandmarks } from '../battle/battleLandmarks.js';
 const MAIN_HOUSE_LANDMARK_ID = 'main-house-center';
-const BATTLE_PLAYER_LANDMARK = 'battle-player-pos';
-const BATTLE_OPPONENT_LANDMARK = 'battle-opponent-pos';
-const BATTLE_CAMERA_LANDMARK = 'battle-camera-pos';
 
 const loadedGroups = new WeakSet();
 
@@ -49,11 +46,11 @@ function registerHouseLandmarks(cluster) {
             .addScaledVector(BATTLE_STAGE_RIGHT, OPPONENT_LATERAL_OFFSET_TILES * TILE_SIZE)
             .addScaledVector(BATTLE_STAGE_FORWARD, OPPONENT_FORWARD_OFFSET_TILES * TILE_SIZE);
 
-        setLandmark(BATTLE_PLAYER_LANDMARK, { position: playerPosition });
-        setLandmark(BATTLE_OPPONENT_LANDMARK, { position: opponentPosition });
-        setLandmark(BATTLE_CAMERA_LANDMARK, {
-            position: stageCenter.clone().add(CAMERA_STAGE_OFFSET),
-            meta: { lookOffset: CAMERA_LOOK_OFFSET.clone() }
+        setBattleLandmarks({
+            playerPosition,
+            opponentPosition,
+            cameraPosition: stageCenter.clone().add(CAMERA_STAGE_OFFSET),
+            cameraMeta: { lookOffset: CAMERA_LOOK_OFFSET.clone() }
         });
     }
 }

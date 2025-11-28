@@ -1,5 +1,12 @@
 import * as THREE from 'three';
-import { TILE_SIZE, PLAYER_CONFIG } from '../config/index.js';
+import { PLAYER_CONFIG } from '../config/index.js';
+import {
+    PLAYER_POKEMON_LATERAL_TILES,
+    OPPONENT_POKEMON_LATERAL_TILES,
+    POKEMON_FORWARD_TILES,
+    computeBattleBasis,
+    buildBattlePosition
+} from './battleConfig.js';
 
 const textureLoader = new THREE.TextureLoader();
 const ROOT_ASSET_BASE = new URL('../../', import.meta.url);
@@ -224,17 +231,15 @@ function placePlayerPokemon(mesh, playerEntity, opponentEntity) {
         fallbackForward = new THREE.Vector3(0, 0, -1).applyQuaternion(playerEntity.quaternion);
     }
     const direction = resolveDirection(playerEntity.position, opponentEntity?.position, fallbackForward);
-    const right = new THREE.Vector3(direction.z, 0, -direction.x);
-    if (right.lengthSq() < 1e-6) {
-        right.set(1, 0, 0);
-    } else {
-        right.normalize();
-    }
+    const { forward, right } = computeBattleBasis(direction);
 
-    const forwardStep = direction.clone().multiplyScalar(TILE_SIZE);
-    const leftStep = right.clone().multiplyScalar(-TILE_SIZE);
-
-    const anchor = playerEntity.position.clone().add(forwardStep).add(leftStep);
+    const anchor = buildBattlePosition({
+        base: playerEntity.position,
+        forwardTiles: POKEMON_FORWARD_TILES,
+        lateralTiles: PLAYER_POKEMON_LATERAL_TILES,
+        forward,
+        right
+    });
     anchor.y = PLAYER_CONFIG.baseHeight + PLAYER_HEIGHT_OFFSET;
     mesh.position.copy(anchor);
 
@@ -254,17 +259,15 @@ function placeOpponentPokemon(mesh, playerEntity, opponentEntity) {
         fallbackForward = new THREE.Vector3(0, 0, -1).applyQuaternion(opponentEntity.quaternion);
     }
     const direction = resolveDirection(opponentEntity.position, playerEntity?.position, fallbackForward);
-    const right = new THREE.Vector3(direction.z, 0, -direction.x);
-    if (right.lengthSq() < 1e-6) {
-        right.set(1, 0, 0);
-    } else {
-        right.normalize();
-    }
+    const { forward, right } = computeBattleBasis(direction);
 
-    const forwardStep = direction.clone().multiplyScalar(TILE_SIZE);
-    const leftStep = right.clone().multiplyScalar(-TILE_SIZE);
-
-    const anchor = opponentEntity.position.clone().add(forwardStep).add(leftStep);
+    const anchor = buildBattlePosition({
+        base: opponentEntity.position,
+        forwardTiles: POKEMON_FORWARD_TILES,
+        lateralTiles: OPPONENT_POKEMON_LATERAL_TILES,
+        forward,
+        right
+    });
     anchor.y = PLAYER_CONFIG.baseHeight + OPPONENT_HEIGHT_OFFSET;
     mesh.position.copy(anchor);
 
