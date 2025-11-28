@@ -18,6 +18,8 @@ const loadTokens = {
     opponent: 0
 };
 
+const DEFAULT_SPRITE_FPS = 15;
+
 const DEFAULT_DIRECTION = new THREE.Vector3(0, 0, 1);
 
 function disposeSprite(key) {
@@ -26,6 +28,9 @@ function disposeSprite(key) {
     entry.scene?.remove(entry.mesh);
     entry.geometry?.dispose?.();
     entry.material?.dispose?.();
+    if (entry.animationHandle) {
+        entry.animationHandle.stop();
+    }
     entry.texture?.dispose?.();
     spriteEntries[key] = null;
 }
@@ -60,13 +65,57 @@ function resolveSpriteUrl(url) {
     }
 }
 
-function ensureSprite({ key, scene, spriteUrl, onReady }) {
-    if (!scene || !spriteUrl) {
+function computeTextureHeight(texture) {
+    const image = texture?.image;
+    if (!image) return null;
+    return image.naturalHeight ?? image.videoHeight ?? image.height ?? null;
+}
+
+function createSpriteAnimation(texture, frames) {
+    const framesHorizontal = Math.max(1, frames || 1);
+    let currentFrame = 0;
+    let lastFrameTime = Date.now();
+    const fps = DEFAULT_SPRITE_FPS;
+    const frameTime = 1000 / fps;
+    let rafId = null;
+    let stopped = false;
+
+    function updateFrame() {
+        if (stopped) return;
+        
+        const now = Date.now();
+        if (now - lastFrameTime >= frameTime) {
+            currentFrame = (currentFrame + 1) % framesHorizontal;
+            lastFrameTime = now;
+            texture.offset.x = currentFrame / framesHorizontal;
+        }
+        
+        rafId = requestAnimationFrame(updateFrame);
+    }
+
+    if (framesHorizontal > 1) {
+        rafId = requestAnimationFrame(updateFrame);
+    }
+
+    return {
+        stop: () => {
+            stopped = true;
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+            }
+        }
+    };
+}
+
+function ensureSprite({ key, scene, spriteConfig, onReady }) {
+    if (!scene || !spriteConfig?.image) {
         disposeSprite(key);
         return;
     }
 
-    const resolvedUrl = resolveSpriteUrl(spriteUrl);
+    const { image, frames, frameHeight = null, vAlign = 'top' } = spriteConfig;
+    const resolvedUrl = resolveSpriteUrl(image);
     if (!resolvedUrl) {
         disposeSprite(key);
         return;
@@ -83,6 +132,8 @@ function ensureSprite({ key, scene, spriteUrl, onReady }) {
     }
 
     const token = ++loadTokens[key];
+    const framesHorizontal = Math.max(1, frames || 1);
+    
     textureLoader.load(
         resolvedUrl,
         (texture) => {
@@ -91,6 +142,27 @@ function ensureSprite({ key, scene, spriteUrl, onReady }) {
                 return;
             }
             disposeSprite(key);
+            
+            texture.minFilter = THREE.NearestFilter;
+            texture.magFilter = THREE.NearestFilter;
+
+            const textureHeight = computeTextureHeight(texture);
+            let repeatY = 1;
+            let offsetY = 0;
+            if (frameHeight && textureHeight) {
+                repeatY = Math.min(1, frameHeight / textureHeight);
+                const remaining = Math.max(0, 1 - repeatY);
+                if (vAlign === 'center') {
+                    offsetY = remaining / 2;
+                } else if (vAlign === 'top') {
+                    offsetY = remaining;
+                } else {
+                    offsetY = 0;
+                }
+            }
+
+            texture.repeat.set(1 / framesHorizontal, repeatY);
+            texture.offset.set(0, offsetY);
             texture.encoding = THREE.sRGBEncoding;
             texture.generateMipmaps = false;
             texture.needsUpdate = true;
@@ -104,7 +176,18 @@ function ensureSprite({ key, scene, spriteUrl, onReady }) {
             const mesh = new THREE.Mesh(geometry, material);
             mesh.renderOrder = key === 'opponent' ? 35 : 34;
             scene.add(mesh);
-            spriteEntries[key] = { mesh, geometry, material, texture, scene, url: resolvedUrl };
+            
+            const animationHandle = createSpriteAnimation(texture, framesHorizontal);
+            
+            spriteEntries[key] = { 
+                mesh, 
+                geometry, 
+                material, 
+                texture, 
+                animationHandle,
+                scene, 
+                url: resolvedUrl 
+            };
             onReady(mesh);
         },
         undefined,
@@ -178,24 +261,43 @@ function placeOpponentPokemon(mesh, playerEntity, opponentEntity) {
     }
 }
 
+function normalizeSpriteConfig(config = null) {
+    if (!config) return null;
+    const frames = Math.max(1, config.frames || 1);
+    const width = Number(config.width) || null;
+    const height = Number(config.height) || null;
+    const vAlign = config.vAlign || 'top';
+    return {
+        image: config.image ?? null,
+        frames,
+        height,
+        width,
+        frameHeight: height,
+        vAlign
+    };
+}
+
 export function setWorldPokemonSprites({
     scene,
     playerEntity,
     opponentEntity,
-    playerSpriteUrl,
-    opponentSpriteUrl
+    playerSprite,
+    opponentSprite
 } = {}) {
+    const normalizedPlayer = normalizeSpriteConfig(playerSprite);
+    const normalizedOpponent = normalizeSpriteConfig(opponentSprite);
+
     ensureSprite({
         key: 'player',
         scene,
-        spriteUrl: playerSpriteUrl,
+        spriteConfig: normalizedPlayer,
         onReady: (mesh) => placePlayerPokemon(mesh, playerEntity, opponentEntity)
     });
 
     ensureSprite({
         key: 'opponent',
         scene,
-        spriteUrl: opponentSpriteUrl,
+        spriteConfig: normalizedOpponent,
         onReady: (mesh) => placeOpponentPokemon(mesh, playerEntity, opponentEntity)
     });
 }

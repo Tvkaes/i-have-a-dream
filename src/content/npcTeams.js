@@ -30,8 +30,18 @@ export const NPC_TEAMS = {
                     nature: 'Neutral'
                 },
                 sprite: {
-                    front: '/pokemon/cyndaquill/155.gif',
-                    back: '/pokemon/cyndaquill/back/155.gif'
+                    front:{
+                        image:'/pokemon/cyndaquill/cyndaquill_front.png',
+                        frames:37,
+                        width: 44,
+                        height: 37,
+                    },
+                    back:{
+                        image:'/pokemon/cyndaquill/cyndaquill_back.png',
+                        frames:129,
+                        width: 46,
+                        height: 37,
+                    }
                 },
                 moveset_level_13: ['Ember', 'Smokescreen', 'Quick Attack', 'Tackle']
             },
@@ -61,8 +71,18 @@ export const NPC_TEAMS = {
                     nature: 'Neutral'
                 },
                 sprite: {
-                    front: '/pokemon/totodile/158.gif',
-                    back: '/pokemon/totodile/back/158.gif'
+                    front:{
+                        image:'/pokemon/totodile/totodile_front.png',
+                        frames:54,
+                        width: 43,
+                        height: 58,
+                    },
+                    back:{
+                        image:'/pokemon/totodile/totodile_back.png',
+                        frames:45,
+                        width: 44,
+                        height: 63,
+                    }
                 },
                 moveset_level_13: ['Water Gun', 'Bite', 'Scratch', 'Leer']
             },
@@ -92,8 +112,18 @@ export const NPC_TEAMS = {
                     nature: 'Neutral'
                 },
                 sprite: {
-                    front: '/pokemon/gastly/92.gif',
-                    back: '/pokemon/gastly/back/92.gif'
+                    front:{
+                        image:'/pokemon/gastly/gastly_front.png',
+                        frames:57,
+                        width: 67,
+                        height: 75,
+                    },
+                    back:{
+                        image:'/pokemon/gastly/gastly_back.png',
+                        frames:110,
+                        width: 64,
+                        height: 78,
+                    }
                 },
                 moveset_level_13: ['Hypnosis', 'Lick', 'Mean Look', 'Curse']
             }
@@ -128,8 +158,18 @@ export const PLAYER_POKEMON_CHOICES = [
             nature: 'Neutral'
         },
         sprite: {
-            front: '/pokemon/chikorita/152.gif',
-            back: '/pokemon/chikorita/back/152.gif'
+            front:{
+                image:'/pokemon/chikorita/chikorita_front.png',
+                frames:36,
+                width: 41,
+                height: 56,
+            },
+            back:{
+                image:'/pokemon/chikorita/chikorita_back.png',
+                frames:53,
+                width: 41,
+                height: 59,
+            }
         },
         moveset_level_13: ['Razor Leaf', 'Tackle', 'Poison Powder', 'Synthesis']
     },
@@ -159,8 +199,18 @@ export const PLAYER_POKEMON_CHOICES = [
             nature: 'Neutral'
         },
         sprite: {
-            front: '/pokemon/squirtle/7.gif',
-            back: '/pokemon/squirtle/back/7.gif'
+            front:{
+                image:'/pokemon/squirtle/squirtle_front.png',
+                frames:30,
+                width: 39,
+                height: 43,
+            },
+            back:{
+                image:'/pokemon/squirtle/squirtle_back.png',
+                frames:34,
+                width: 41,
+                height: 47,
+            }
         },
         moveset_level_13: ['Water Gun', 'Bite', 'Withdraw', 'Tackle']
     },
@@ -190,8 +240,18 @@ export const PLAYER_POKEMON_CHOICES = [
             nature: 'Neutral'
         },
         sprite: {
-            front: '/pokemon/pidgey/16.gif',
-            back: '/pokemon/pidgey/back/16.gif'
+            front:{
+                image:'/pokemon/pidgey/pidgey_front.png',
+                frames:25,
+                width: 42,
+                height: 48,
+            },
+            back:{
+                image:'/pokemon/pidgey/pidgey_back.png',
+                frames:29,
+                width: 43,
+                height: 48,
+            }
         },
         moveset_level_13: ['Gust', 'Quick Attack', 'Sand Attack', 'Tackle']
     },
@@ -221,8 +281,18 @@ export const PLAYER_POKEMON_CHOICES = [
             nature: 'Neutral'
         },
         sprite: {
-            front: '/pokemon/ratatta/19.gif',
-            back: '/pokemon/ratatta/back/19.gif'
+            front:{
+                image:'/pokemon/ratatta/rattata_front.png',
+                frames:54,
+                width: 43,
+                height: 43,
+            },
+            back:{
+                image:'/pokemon/ratatta/rattata_back.png',
+                frames:96,
+                width: 43,
+                height: 43,
+            }
         },
         moveset_level_13: ['Quick Attack', 'Bite', 'Tackle', 'Focus Energy']
     },
@@ -252,8 +322,18 @@ export const PLAYER_POKEMON_CHOICES = [
             nature: 'Neutral'
         },
         sprite: {
-            front: '/pokemon/pikachu/25.gif',
-            back: '/pokemon/pikachu/back/25.gif'
+            front:{
+                image:'/pokemon/pikachu/pikachu_front.png',
+                frames:58,
+                width: 50,
+                height: 46,
+            },
+            back:{
+                image:'/pokemon/pikachu/pikachu_back.png',
+                frames:63,
+                width: 43,
+                height: 49,
+            }
         },
         moveset_level_13: ['Thunder Shock', 'Quick Attack', 'Thunder Wave', 'Double Team']
     },
@@ -283,8 +363,18 @@ export const PLAYER_POKEMON_CHOICES = [
             nature: 'Neutral'
         },
         sprite: {
-            front: '/pokemon/eevee/133.gif',
-            back: '/pokemon/eevee/back/133.gif'
+            front:{
+                image:'/pokemon/eevee/eevee_front.png',
+                frames:67,
+                width: 46,
+                height: 47,
+            },
+            back:{
+                image:'/pokemon/eevee/eevee_back.png',
+                frames:81,
+                width: 51,
+                height: 52,
+            }
         },
         moveset_level_13: ['Quick Attack', 'Sand Attack', 'Covet', 'Growl']
     }

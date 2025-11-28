@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animación de Spritesheet Horizontal</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #1a1a2e;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            max-width: 350px;
+            z-index: 100;
+        }
+        h3 {
+            margin-top: 0;
+            color: #4a90e2;
+        }
+        label {
+            display: block;
+            margin: 10px 0 5px 0;
+            font-weight: bold;
+        }
+        input[type="file"] {
+            margin: 5px 0 15px 0;
+        }
+        input[type="number"] {
+            width: 80px;
+            padding: 5px;
+            margin: 5px 10px 5px 0;
+            border: 1px solid #4a90e2;
+            border-radius: 4px;
+            background: #2a2a3e;
+            color: white;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 5px 5px 0;
+            background: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #357abd;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .info {
+            font-size: 12px;
+            background: #2a2a3e;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            line-height: 1.6;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .success {
+            background: #2d5016;
+            color: #90ee90;
+        }
+        .error {
+            background: #5c1a1a;
+            color: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <h3>🎮 Animador de Spritesheet</h3>
+        
+        <label>📁 Sube tu Spritesheet Horizontal:</label>
+        <input type="file" id="fileInput" accept="image/png,image/jpeg,image/gif">
+        
+        <label>🎞️ Número de Frames:</label>
+        <input type="number" id="framesInput" value="8" min="1" max="100">
+        
+        <label>⚡ Velocidad (FPS):</label>
+        <input type="number" id="fpsInput" value="10" min="1" max="60">
+        
+        <div>
+            <button id="applyBtn" disabled>Aplicar Cambios</button>
+            <button id="playPauseBtn" disabled>⏸️ Pausar</button>
+        </div>
+        
+        <div id="status"></div>
+        
+        <div class="info">
+            <strong>💡 Instrucciones:</strong><br>
+            1. Sube una imagen con frames en horizontal<br>
+            2. Indica cuántos frames tiene<br>
+            3. Ajusta la velocidad (FPS)<br>
+            4. ¡Listo! La animación se reproduce<br><br>
+            <strong>Frame actual:</strong> <span id="currentFrameDisplay">0</span>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        var scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a2e);
+
+        var camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.z = 5;
+
+        var renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        var framesHorizontal = 8;
+        var currentFrame = 0;
+        var totalFrames = framesHorizontal;
+        var fps = 10;
+        var frameTime = 1000 / fps;
+        var lastFrameTime = Date.now();
+        var isPlaying = true;
+        
+        var texture = null;
+        var sprite = null;
+        var spriteMaterial = null;
+
+        var fileInput = document.getElementById('fileInput');
+        var framesInput = document.getElementById('framesInput');
+        var fpsInput = document.getElementById('fpsInput');
+        var applyBtn = document.getElementById('applyBtn');
+        var playPauseBtn = document.getElementById('playPauseBtn');
+        var statusDiv = document.getElementById('status');
+        var currentFrameDisplay = document.getElementById('currentFrameDisplay');
+
+        function showStatus(message, isError) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + (isError ? 'error' : 'success');
+            setTimeout(function() {
+                statusDiv.textContent = '';
+                statusDiv.className = 'status';
+            }, 3000);
+        }
+
+        function createSprite(imageSource) {
+            if (sprite) {
+                scene.remove(sprite);
+                if (spriteMaterial && spriteMaterial.map) {
+                    spriteMaterial.map.dispose();
+                }
+                if (spriteMaterial) {
+                    spriteMaterial.dispose();
+                }
+            }
+
+            var textureLoader = new THREE.TextureLoader();
+            
+            textureLoader.load(
+                imageSource,
+                function(loadedTexture) {
+                    texture = loadedTexture;
+                    
+                    texture.minFilter = THREE.NearestFilter;
+                    texture.magFilter = THREE.NearestFilter;
+                    
+                    texture.repeat.set(1 / framesHorizontal, 1);
+                    texture.offset.set(0, 0);
+                    
+                    spriteMaterial = new THREE.SpriteMaterial({
+                        map: texture,
+                        transparent: true
+                    });
+                    
+                    sprite = new THREE.Sprite(spriteMaterial);
+                    sprite.scale.set(4, 4, 1);
+                    scene.add(sprite);
+                    
+                    currentFrame = 0;
+                    lastFrameTime = Date.now();
+                    
+                    applyBtn.disabled = false;
+                    playPauseBtn.disabled = false;
+                    
+                    showStatus('✅ Spritesheet cargado correctamente', false);
+                },
+                undefined,
+                function(error) {
+                    console.error('Error cargando imagen:', error);
+                    showStatus('❌ Error al cargar la imagen', true);
+                }
+            );
+        }
+
+        fileInput.addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                var reader = new FileReader();
+                reader.onload = function(event) {
+                    createSprite(event.target.result);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                showStatus('❌ Por favor selecciona una imagen válida', true);
+            }
+        });
+
+        applyBtn.addEventListener('click', function() {
+            var newFrames = parseInt(framesInput.value);
+            var newFps = parseInt(fpsInput.value);
+            
+            if (newFrames < 1 || newFrames > 100) {
+                showStatus('❌ Frames debe estar entre 1 y 100', true);
+                return;
+            }
+            
+            if (newFps < 1 || newFps > 60) {
+                showStatus('❌ FPS debe estar entre 1 y 60', true);
+                return;
+            }
+            
+            framesHorizontal = newFrames;
+            totalFrames = framesHorizontal;
+            fps = newFps;
+            frameTime = 1000 / fps;
+            
+            if (texture) {
+                texture.repeat.set(1 / framesHorizontal, 1);
+                texture.offset.set(0, 0);
+            }
+            
+            currentFrame = 0;
+            lastFrameTime = Date.now();
+            
+            showStatus('✅ Configuración actualizada', false);
+        });
+
+        playPauseBtn.addEventListener('click', function() {
+            isPlaying = !isPlaying;
+            playPauseBtn.textContent = isPlaying ? '⏸️ Pausar' : '▶️ Reproducir';
+            
+            if (isPlaying) {
+                lastFrameTime = Date.now();
+            }
+        });
+
+        function updateSpriteFrame() {
+            if (!isPlaying || !sprite || !texture) {
+                return;
+            }
+            
+            var now = Date.now();
+            
+            if (now - lastFrameTime >= frameTime) {
+                currentFrame = (currentFrame + 1) % totalFrames;
+                lastFrameTime = now;
+                
+                texture.offset.x = currentFrame / framesHorizontal;
+                
+                currentFrameDisplay.textContent = currentFrame;
+            }
+        }
+
+        var time = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            updateSpriteFrame();
+            
+            if (sprite) {
+                time += 0.01;
+                sprite.position.x = Math.sin(time) * 2;
+                sprite.position.y = Math.cos(time * 0.8) * 1.5;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

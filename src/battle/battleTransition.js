@@ -114,6 +114,10 @@ export function startMiloBattleSetup() {
         spawnBattleOpponent(payload.scene ?? scene, payload.player ?? player);
         window.__interactionOverlay__?.hideAll?.();
         showBattleHud();
+        window.__triggerBattleCleanup__ = (result) => {
+            console.info('[battle] Finalizando batalla con resultado:', result);
+            endBattleCleanup();
+        };
         beginMiloBattle();
         setFlag('isBattleActive', true);
 
@@ -136,4 +140,5 @@ export function endBattleCleanup() {
     resetCameraOffsets();
     cleanupBattleOpponent(window.__scene__);
     resetBattleState();
+    window.__triggerBattleCleanup__ = null;
 }
