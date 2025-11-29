@@ -1,7 +1,13 @@
 const MOVE_DATA = {
     'razor leaf': { type: 'Planta', pp: 25, power: 55, accuracy: 95 },
     'tackle': { type: 'Normal', pp: 35, power: 40, accuracy: 100 },
-    'poison powder': { type: 'Veneno', pp: 35, power: 0, accuracy: 75 },
+    'poison powder': {
+        type: 'Veneno',
+        pp: 35,
+        power: 0,
+        accuracy: 75,
+        statusEffect: { type: 'POISONED', chance: 1 }
+    },
     'synthesis': { type: 'Planta', pp: 5, power: 0, accuracy: 100 },
     'water gun': { type: 'Agua', pp: 25, power: 40, accuracy: 100 },
     'bite': { type: 'Siniestro', pp: 25, power: 60, accuracy: 100 },

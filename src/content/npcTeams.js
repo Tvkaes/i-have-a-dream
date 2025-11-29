@@ -8,6 +8,7 @@ export const NPC_TEAMS = {
                 name: 'Cyndaquil',
                 level: 13,
                 type: ['Fire'],
+                height: 0.5,
                 stats: {
                     hp: 37,
                     attack: 22,
@@ -49,6 +50,7 @@ export const NPC_TEAMS = {
                 name: 'Totodile',
                 level: 13,
                 type: ['Water'],
+                height: 0.6,
                 stats: {
                     hp: 40,
                     attack: 25,
@@ -90,6 +92,7 @@ export const NPC_TEAMS = {
                 name: 'Gastly',
                 level: 13,
                 type: ['Ghost', 'Poison'],
+                height: 1.3,
                 stats: {
                     hp: 34,
                     attack: 18,
@@ -136,6 +139,7 @@ export const PLAYER_POKEMON_CHOICES = [
         name: 'Chikorita',
         level: 13,
         type: ['Grass'],
+        height: 0.9,
         stats: {
             hp: 41,
             attack: 20,
@@ -177,6 +181,7 @@ export const PLAYER_POKEMON_CHOICES = [
         name: 'Squirtle',
         level: 13,
         type: ['Water'],
+        height: 0.5,
         stats: {
             hp: 39,
             attack: 22,
@@ -218,6 +223,7 @@ export const PLAYER_POKEMON_CHOICES = [
         name: 'Pidgey',
         level: 13,
         type: ['Normal', 'Flying'],
+        height: 0.3,
         stats: {
             hp: 38,
             attack: 21,
@@ -259,6 +265,7 @@ export const PLAYER_POKEMON_CHOICES = [
         name: 'Rattata',
         level: 13,
         type: ['Normal'],
+        height: 0.3,
         stats: {
             hp: 33,
             attack: 28,
@@ -300,6 +307,7 @@ export const PLAYER_POKEMON_CHOICES = [
         name: 'Pikachu',
         level: 13,
         type: ['Electric'],
+        height: 0.4,
         stats: {
             hp: 33,
             attack: 22,
@@ -341,6 +349,7 @@ export const PLAYER_POKEMON_CHOICES = [
         name: 'Eevee',
         level: 13,
         type: ['Normal'],
+        height: 0.3,
         stats: {
             hp: 40,
             attack: 25,

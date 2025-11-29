@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLAYER_CONFIG } from '../config/index.js';
+import { PLAYER_CONFIG, TILE_SIZE } from '../config/index.js';
 import {
     PLAYER_POKEMON_LATERAL_TILES,
     OPPONENT_POKEMON_LATERAL_TILES,
@@ -14,6 +14,9 @@ const SPRITE_WIDTH = 1;
 const SPRITE_HEIGHT = 1;
 const PLAYER_HEIGHT_OFFSET = 0.32;
 const OPPONENT_HEIGHT_OFFSET = 0.38;
+const WORLD_UNITS_PER_METER = TILE_SIZE;
+const MIN_SPRITE_HEIGHT_UNITS = 0.25;
+const MAX_SPRITE_HEIGHT_UNITS = 4;
 
 const spriteEntries = {
     player: null,
@@ -28,6 +31,29 @@ const loadTokens = {
 const DEFAULT_SPRITE_FPS = 15;
 
 const DEFAULT_DIRECTION = new THREE.Vector3(0, 0, 1);
+
+function clampSpriteHeight(heightMeters) {
+    const meters = typeof heightMeters === 'number' ? heightMeters : 1;
+    const units = meters * WORLD_UNITS_PER_METER;
+    return THREE.MathUtils.clamp(units, MIN_SPRITE_HEIGHT_UNITS, MAX_SPRITE_HEIGHT_UNITS);
+}
+
+function resolveSpriteAspect(spriteConfig) {
+    const frameHeight = spriteConfig?.frameHeight ?? spriteConfig?.height ?? null;
+    const width = spriteConfig?.width ?? null;
+    if (frameHeight && width && frameHeight > 0) {
+        return width / frameHeight;
+    }
+    return 1;
+}
+
+function applySpriteScale(mesh, spriteConfig, targetHeightMeters) {
+    if (!mesh) return;
+    const height = clampSpriteHeight(targetHeightMeters);
+    const aspect = resolveSpriteAspect(spriteConfig);
+    const widthScale = height * aspect;
+    mesh.scale.set(widthScale, height, 1);
+}
 
 function disposeSprite(key) {
     const entry = spriteEntries[key];
@@ -115,7 +141,7 @@ function createSpriteAnimation(texture, frames) {
     };
 }
 
-function ensureSprite({ key, scene, spriteConfig, onReady }) {
+function ensureSprite({ key, scene, spriteConfig, targetHeightMeters = 1, onReady }) {
     if (!scene || !spriteConfig?.image) {
         disposeSprite(key);
         return;
@@ -134,6 +160,9 @@ function ensureSprite({ key, scene, spriteConfig, onReady }) {
             scene.add(current.mesh);
             current.scene = scene;
         }
+        applySpriteScale(current.mesh, spriteConfig, targetHeightMeters);
+        current.targetHeight = targetHeightMeters;
+        current.spriteConfig = spriteConfig;
         onReady(current.mesh);
         return;
     }
@@ -183,6 +212,7 @@ function ensureSprite({ key, scene, spriteConfig, onReady }) {
             const mesh = new THREE.Mesh(geometry, material);
             mesh.renderOrder = key === 'opponent' ? 35 : 34;
             scene.add(mesh);
+            applySpriteScale(mesh, spriteConfig, targetHeightMeters);
             
             const animationHandle = createSpriteAnimation(texture, framesHorizontal);
             
@@ -193,7 +223,9 @@ function ensureSprite({ key, scene, spriteConfig, onReady }) {
                 texture, 
                 animationHandle,
                 scene, 
-                url: resolvedUrl 
+                url: resolvedUrl,
+                targetHeight: targetHeightMeters,
+                spriteConfig
             };
             onReady(mesh);
         },
@@ -240,7 +272,8 @@ function placePlayerPokemon(mesh, playerEntity, opponentEntity) {
         forward,
         right
     });
-    anchor.y = PLAYER_CONFIG.baseHeight + PLAYER_HEIGHT_OFFSET;
+    const spriteHeight = mesh.scale?.y ?? 1;
+    anchor.y = PLAYER_CONFIG.baseHeight + PLAYER_HEIGHT_OFFSET + spriteHeight / 2;
     mesh.position.copy(anchor);
 
     if (opponentEntity) {
@@ -268,7 +301,8 @@ function placeOpponentPokemon(mesh, playerEntity, opponentEntity) {
         forward,
         right
     });
-    anchor.y = PLAYER_CONFIG.baseHeight + OPPONENT_HEIGHT_OFFSET;
+    const spriteHeight = mesh.scale?.y ?? 1;
+    anchor.y = PLAYER_CONFIG.baseHeight + OPPONENT_HEIGHT_OFFSET + spriteHeight / 2;
     mesh.position.copy(anchor);
 
     if (playerEntity) {
@@ -301,7 +335,9 @@ export function setWorldPokemonSprites({
     playerEntity,
     opponentEntity,
     playerSprite,
-    opponentSprite
+    opponentSprite,
+    playerHeightMeters = 1,
+    opponentHeightMeters = 1
 } = {}) {
     const normalizedPlayer = normalizeSpriteConfig(playerSprite);
     const normalizedOpponent = normalizeSpriteConfig(opponentSprite);
@@ -310,6 +346,7 @@ export function setWorldPokemonSprites({
         key: 'player',
         scene,
         spriteConfig: normalizedPlayer,
+        targetHeightMeters: playerHeightMeters,
         onReady: (mesh) => placePlayerPokemon(mesh, playerEntity, opponentEntity)
     });
 
@@ -317,6 +354,7 @@ export function setWorldPokemonSprites({
         key: 'opponent',
         scene,
         spriteConfig: normalizedOpponent,
+        targetHeightMeters: opponentHeightMeters,
         onReady: (mesh) => placeOpponentPokemon(mesh, playerEntity, opponentEntity)
     });
 }

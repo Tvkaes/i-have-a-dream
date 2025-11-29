@@ -42,6 +42,106 @@ const STATUS_MOVE_BONUS = Object.freeze({
 });
 let battleState = null;
 
+const STAT_STAGE_MIN = -6;
+const STAT_STAGE_MAX = 6;
+const FOCUS_ENERGY_TURNS = 4;
+const BASE_CRIT_CHANCE = 0.0625;
+const FOCUS_ENERGY_CRIT_BONUS = 0.3;
+const CRITICAL_DAMAGE_MULTIPLIER = 1.5;
+
+function createBattleRuntime() {
+    return {
+        attackStage: 0,
+        defenseStage: 0,
+        accuracyStage: 0,
+        evasionStage: 0,
+        focusEnergyTurns: 0,
+        trapped: false,
+        trappedBy: null
+    };
+}
+
+function getBattleRuntime(pokemon) {
+    if (!pokemon) return null;
+    if (!pokemon.runtime) {
+        pokemon.runtime = createBattleRuntime();
+    }
+    return pokemon.runtime;
+}
+
+function stageToMultiplier(stage = 0) {
+    if (stage === 0) return 1;
+    if (stage > 0) {
+        return (2 + stage) / 2;
+    }
+    return 2 / (2 - stage);
+}
+
+function modifyStatStage(pokemon, statKey, delta) {
+    if (!pokemon || !statKey || !delta) return false;
+    const runtime = getBattleRuntime(pokemon);
+    if (!runtime) return false;
+    const stageKey = `${statKey}Stage`;
+    const current = runtime[stageKey] ?? 0;
+    const next = clamp(current + delta, STAT_STAGE_MIN, STAT_STAGE_MAX);
+    if (next === current) return false;
+    runtime[stageKey] = next;
+    return true;
+}
+
+function getModifiedStatValue(pokemon, statKey, baseValue) {
+    if (!pokemon) return baseValue;
+    const runtime = getBattleRuntime(pokemon);
+    const stageKey = `${statKey}Stage`;
+    const stage = runtime?.[stageKey] ?? 0;
+    const effectiveBase = typeof baseValue === 'number' ? baseValue : 1;
+    return Math.max(1, Math.round(effectiveBase * stageToMultiplier(stage)));
+}
+
+function getAccuracyMultiplier(pokemon) {
+    const runtime = getBattleRuntime(pokemon);
+    return stageToMultiplier(runtime?.accuracyStage ?? 0);
+}
+
+function getEvasionMultiplier(pokemon) {
+    const runtime = getBattleRuntime(pokemon);
+    return stageToMultiplier(runtime?.evasionStage ?? 0);
+}
+
+function setTrapped(pokemon, trappedBy) {
+    const runtime = getBattleRuntime(pokemon);
+    if (!runtime || runtime.trapped) return false;
+    runtime.trapped = true;
+    runtime.trappedBy = trappedBy ?? null;
+    return true;
+}
+
+function isPokemonTrapped(pokemon) {
+    return Boolean(getBattleRuntime(pokemon)?.trapped);
+}
+
+function healPokemon(target, amount) {
+    if (!target || !amount) return 0;
+    const maxHp = target.maxHp ?? target.stats?.hp ?? 1;
+    const current = target.currentHp ?? maxHp;
+    const next = clamp(current + amount, 0, maxHp);
+    const healed = next - current;
+    target.currentHp = next;
+    return healed;
+}
+
+function didCriticalHit(attacker) {
+    if (!attacker) return false;
+    const runtime = getBattleRuntime(attacker);
+    const bonus = runtime?.focusEnergyTurns > 0 ? FOCUS_ENERGY_CRIT_BONUS : 0;
+    const chance = Math.min(0.95, BASE_CRIT_CHANCE + bonus);
+    const roll = Math.random();
+    if (runtime && runtime.focusEnergyTurns > 0) {
+        runtime.focusEnergyTurns = Math.max(0, runtime.focusEnergyTurns - 1);
+    }
+    return roll < chance;
+}
+
 function getHud() {
     return window.__battleHud__ || null;
 }
@@ -57,6 +157,7 @@ function hydratePokemon(source) {
         name: source.name,
         level: source.level,
         type: Array.isArray(source.type) ? [...source.type] : [source.type].filter(Boolean),
+        height: typeof source.height === 'number' ? source.height : null,
         stats: clone(source.stats || {}),
         maxHp: source.stats?.hp ?? 1,
         currentHp: source.stats?.hp ?? 1,
@@ -157,6 +258,8 @@ async function updateBattleSprites() {
     const opponentPokemon = getActiveOpponentPokemon();
     const playerSpriteConfig = resolveSpriteConfig(playerPokemon, 'back');
     const opponentSpriteConfig = resolveSpriteConfig(opponentPokemon, 'front');
+    const playerHeight = clamp(playerPokemon?.height ?? 1, 0.3, 3.5);
+    const opponentHeight = clamp(opponentPokemon?.height ?? 1, 0.3, 3.5);
     const scene = window.__scene__;
     const playerEntity = window.__player__;
     const opponentEntity = window.__activeBattleOpponent__;
@@ -171,7 +274,9 @@ async function updateBattleSprites() {
         playerEntity,
         opponentEntity,
         playerSprite: playerSpriteConfig,
-        opponentSprite: opponentSpriteConfig
+        opponentSprite: opponentSpriteConfig,
+        playerHeightMeters: playerHeight,
+        opponentHeightMeters: opponentHeight
     });
 }
 
@@ -342,7 +447,9 @@ function chooseOpponentAction() {
 }
 
 function getSpeed(pokemon) {
-    return pokemon?.stats?.speed ?? pokemon?.stats?.speed ?? 10;
+    if (!pokemon) return 10;
+    const baseSpeed = pokemon.stats?.speed ?? 10;
+    return getModifiedStatValue(pokemon, 'speed', baseSpeed);
 }
 
 async function resolveTurn(playerMoveIndex) {
@@ -427,14 +534,15 @@ async function executeMove(attacker, defender, move, actingSide) {
         await wait(300);
     }
 
-    if (!passesAccuracy(move.accuracy)) {
+    if (!passesAccuracy(move, attacker, defender)) {
         hud?.setMessage?.(`${attacker.name} falló.`);
         await wait();
         return { defenderFainted: false };
     }
 
+    const supportApplied = await applySupportMoveEffect(attacker, defender, move);
     const statusApplied = await applyStatusEffect(attacker, defender, move);
-    if ((!move.power || move.power <= 0) && !statusApplied) {
+    if ((!move.power || move.power <= 0) && !statusApplied && !supportApplied) {
         hud?.setMessage?.('El movimiento aún no tiene efecto implementado.');
         await wait();
         return { defenderFainted: false };
@@ -443,11 +551,16 @@ async function executeMove(attacker, defender, move, actingSide) {
         return { defenderFainted: false };
     }
 
-    const { damage, effectiveness } = calculateDamage(attacker, defender, move);
+    const { damage, effectiveness, critical } = calculateDamage(attacker, defender, move);
     applyDamage(defender, damage);
     updateHudPanels();
     hud?.setMessage?.(`${defender.name} recibió ${damage} de daño.`);
     await wait();
+
+    if (critical) {
+        hud?.setMessage?.('¡Un golpe crítico!');
+        await wait(400);
+    }
 
     if (actingSide === 'player') {
         recordPlayerEffectiveness(effectiveness, move);
@@ -471,14 +584,31 @@ async function executeMove(attacker, defender, move, actingSide) {
     return { defenderFainted: false };
 }
 
-function passesAccuracy(accuracy = 100) {
+function passesAccuracy(move, attacker, defender) {
+    const baseAccuracy = clamp(move?.accuracy ?? 100, 1, 100);
+    const accuracyMultiplier = getAccuracyMultiplier(attacker);
+    const evasionMultiplier = getEvasionMultiplier(defender);
+    const finalAccuracy = clamp(baseAccuracy * (accuracyMultiplier / evasionMultiplier), 1, 100);
     const roll = Math.random() * 100;
-    return roll <= clamp(accuracy, 1, 100);
+    return roll <= finalAccuracy;
 }
 
 async function handlePreMoveStatus(pokemon, actingSide) {
     if (!pokemon) return true;
     const hud = getHud();
+
+    if (pokemon.status === 'POISONED') {
+        const poisonDamage = Math.max(1, Math.floor((pokemon.maxHp ?? 1) / 8));
+        applyDamage(pokemon, poisonDamage);
+        updateHudPanels();
+        hud?.setMessage?.(`${pokemon.name} sufre daño por el veneno.`);
+        await wait(500);
+        if (pokemon.currentHp <= 0) {
+            const faintSide = actingSide === 'player' ? 'player' : 'opponent';
+            await handleFaint(pokemon, faintSide);
+            return false;
+        }
+    }
 
     if (pokemon.status === 'SLEEP') {
         pokemon.statusTurns = Math.max(0, (pokemon.statusTurns ?? 0) - 1);
@@ -527,14 +657,22 @@ async function handlePreMoveStatus(pokemon, actingSide) {
 
 function calculateDamage(attacker, defender, move) {
     const attackerLevel = attacker.level ?? 1;
-    const attackStat = attacker.stats?.attack ?? attacker.stats?.special_attack ?? 10;
-    const defenseStat = defender.stats?.defense ?? defender.stats?.special_defense ?? 10;
+    const baseAttack = attacker.stats?.attack ?? attacker.stats?.special_attack ?? 10;
+    const baseDefense = defender.stats?.defense ?? defender.stats?.special_defense ?? 10;
+    const attackStat = getModifiedStatValue(attacker, 'attack', baseAttack);
+    const defenseStat = getModifiedStatValue(defender, 'defense', baseDefense);
     const levelFactor = (2 * attackerLevel) / 5 + 2;
     const base = ((levelFactor * move.power * (attackStat / Math.max(1, defenseStat))) / 50) + 2;
     const randomFactor = 0.85 + Math.random() * 0.15;
     const effectiveness = getTypeMultiplier(move.type, defender.type);
-    const damage = Math.max(1, Math.floor(base * randomFactor * effectiveness));
-    return { damage, effectiveness };
+    const stabBonus = isStabMove(move.type, attacker.type) ? 1.5 : 1;
+    const critical = didCriticalHit(attacker);
+    const criticalMultiplier = critical ? CRITICAL_DAMAGE_MULTIPLIER : 1;
+    const damage = Math.max(
+        1,
+        Math.floor(base * randomFactor * effectiveness * stabBonus * criticalMultiplier)
+    );
+    return { damage, effectiveness, critical };
 }
 
 function applyDamage(target, amount) {
@@ -579,11 +717,87 @@ async function applyStatusEffect(attacker, defender, move) {
             target.confusionTurns = randomInt(effect.minTurns ?? 2, effect.maxTurns ?? 4);
             hud?.setMessage?.(`${target.name} se confundió.`);
             break;
+        case 'POISONED':
+            target.status = 'POISONED';
+            target.statusTurns = null;
+            hud?.setMessage?.(`${target.name} fue envenenado.`);
+            break;
         default:
             return false;
     }
     await wait(400);
     return true;
+}
+
+async function applySupportMoveEffect(attacker, defender, move) {
+    if (!move?.id) return false;
+    const hud = getHud();
+    switch (move.id) {
+        case 'growl':
+            if (modifyStatStage(defender, 'attack', -1)) {
+                hud?.setMessage?.(`${defender.name} vio reducido su Ataque.`);
+                await wait(400);
+                return true;
+            }
+            return false;
+        case 'leer':
+            if (modifyStatStage(defender, 'defense', -1)) {
+                hud?.setMessage?.(`${defender.name} bajó su Defensa.`);
+                await wait(400);
+                return true;
+            }
+            return false;
+        case 'sand attack':
+            if (modifyStatStage(defender, 'accuracy', -1)) {
+                hud?.setMessage?.(`${defender.name} perdió precisión.`);
+                await wait(400);
+                return true;
+            }
+            return false;
+        case 'double team':
+            if (modifyStatStage(attacker, 'evasion', 1)) {
+                hud?.setMessage?.(`${attacker.name} aumentó su Evasión.`);
+                await wait(400);
+                return true;
+            }
+            return false;
+        case 'withdraw':
+            if (modifyStatStage(attacker, 'defense', 1)) {
+                hud?.setMessage?.(`${attacker.name} reforzó su caparazón.`);
+                await wait(400);
+                return true;
+            }
+            return false;
+        case 'focus energy': {
+            const runtime = getBattleRuntime(attacker);
+            if (!runtime) return false;
+            runtime.focusEnergyTurns = Math.max(runtime.focusEnergyTurns, FOCUS_ENERGY_TURNS);
+            hud?.setMessage?.(`${attacker.name} se concentró para asestar golpes críticos.`);
+            await wait(400);
+            return true;
+        }
+        case 'synthesis': {
+            const healAmount = Math.round((attacker.maxHp ?? attacker.stats?.hp ?? 1) * 0.5);
+            const healed = healPokemon(attacker, healAmount);
+            if (healed > 0) {
+                updateHudPanels();
+                hud?.setMessage?.(`${attacker.name} recuperó ${healed} PS.`);
+            } else {
+                hud?.setMessage?.('Pero su salud ya estaba al máximo.');
+            }
+            await wait(400);
+            return true;
+        }
+        case 'mean look':
+            if (setTrapped(defender, attacker.name)) {
+                hud?.setMessage?.(`${defender.name} no podrá escapar.`);
+                await wait(400);
+                return true;
+            }
+            return false;
+        default:
+            return false;
+    }
 }
 
 function randomInt(min, max) {
