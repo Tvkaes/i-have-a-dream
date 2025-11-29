@@ -2,6 +2,7 @@ import { NPC_TEAMS } from '../content/npcTeams.js';
 import { getPlayerTeam } from '../state/playerTeam.js';
 import { buildMoveEntry } from './moveData.js';
 import { setWorldPokemonSprites, clearWorldPokemonSprites } from './battleWorldSprites.js';
+import { playMoveAnimation } from './animations/index.js';
 import { getTypeMultiplier, isStabMove, normalizeTypes } from './typeChart.js';
 
 const DEFAULT_ACTION_OPTIONS = Object.freeze([
@@ -292,6 +293,7 @@ function selectBestMove(attacker, defender) {
     if (!availableMoves.length) return null;
     const preferStatus = shouldPreferStatusMove(attacker, defender);
     const targetHasFixedStatus = defender?.status && defender.status !== 'OK';
+    const defenderAlreadyAfflicted = targetHasFixedStatus || defender?.confused;
     let bestMove = null;
     let bestScore = -Infinity;
     availableMoves.forEach((move) => {
@@ -308,6 +310,13 @@ function selectBestMove(attacker, defender) {
             score -= 15;
         } else if (!preferStatus && hasStatusEffect && targetHasFixedStatus && move.statusEffect?.type !== 'CONFUSED') {
             score -= 12;
+        }
+
+        if (defenderAlreadyAfflicted && move.power > 0) {
+            score += 18; // priorizar daño cuando el objetivo ya sufre un estado
+        }
+        if (defenderAlreadyAfflicted && hasStatusEffect && !canApplyStatus) {
+            score -= 8;
         }
 
         if (score > bestScore) {
@@ -399,6 +408,7 @@ async function resolveTurn(playerMoveIndex) {
 
 async function executeMove(attacker, defender, move, actingSide) {
     const hud = getHud();
+    const scene = window.__scene__;
     hud?.setMessage?.(`${attacker.name} usó ${move.name}!`);
     updateHudPanels();
     await wait();
@@ -406,6 +416,15 @@ async function executeMove(attacker, defender, move, actingSide) {
     const canAct = await handlePreMoveStatus(attacker, actingSide);
     if (!canAct) {
         return { defenderFainted: false };
+    }
+
+    const animationPlayed = await playMoveAnimation({
+        moveId: move?.id || move?.name,
+        attackerSide: actingSide,
+        scene
+    });
+    if (animationPlayed) {
+        await wait(300);
     }
 
     if (!passesAccuracy(move.accuracy)) {

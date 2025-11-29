@@ -196,6 +196,9 @@ export function startRenderLoop({
     const treeCullInterval = 0.25;
     let treeCullTimer = treeCullInterval;
 
+    let lastWorldId = getCurrentWorldId();
+    ambientEffects.leavesEmitter?.setEnabled?.(lastWorldId === 'exterior');
+
     const loop = () => {
         const delta = clock.getDelta();
         const elapsed = clock.getElapsedTime();
@@ -242,6 +245,13 @@ export function startRenderLoop({
             activeInteractable
         });
         activeInteractable = interactable;
+
+        const currentWorldId = getCurrentWorldId();
+        if (currentWorldId !== lastWorldId) {
+            lastWorldId = currentWorldId;
+            const enableLeaves = currentWorldId === 'exterior';
+            ambientEffects.leavesEmitter?.setEnabled?.(enableLeaves);
+        }
 
         ambientEffects.leavesEmitter?.update?.(delta, elapsed, {
             playerPosition: player.position

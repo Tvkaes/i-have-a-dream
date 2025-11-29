@@ -38,6 +38,7 @@ export class LeavesEmitter {
         this.playerInfluenceRadius = playerInfluenceRadius;
         this.playerInfluenceRadiusSq = playerInfluenceRadius ** 2;
         this.playerInfluenceStrength = playerInfluenceStrength;
+        this.enabled = true;
 
         this.positions = Array.from({ length: count }, () => new THREE.Vector3());
         this.velocities = Array.from({ length: count }, () => new THREE.Vector3());
@@ -141,7 +142,7 @@ export class LeavesEmitter {
     }
 
     update(delta, elapsed = 0, context = {}) {
-        if (!delta) return;
+        if (!delta || !this.enabled) return;
         this.preparePlayerContext(context.playerPosition);
 
         for (let i = 0; i < this.count; i += 1) {
@@ -248,6 +249,7 @@ export class LeavesEmitter {
     }
 
     dispose() {
+        this.enabled = false;
         this.meshAssignments = [];
         this.instanceIndices = [];
         this.meshEntries?.forEach(({ mesh }) => {
@@ -257,5 +259,16 @@ export class LeavesEmitter {
         });
         this.textures?.forEach((tex) => tex?.dispose?.());
         this.meshEntries = [];
+    }
+
+    setEnabled(enabled) {
+        const next = Boolean(enabled);
+        if (this.enabled === next) return;
+        this.enabled = next;
+        this.meshEntries?.forEach(({ mesh }) => {
+            if (mesh) {
+                mesh.visible = next;
+            }
+        });
     }
 }

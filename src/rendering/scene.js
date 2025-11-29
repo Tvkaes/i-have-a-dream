@@ -25,6 +25,7 @@ import {
 
 let RAPIER = null;
 let disposeSceneHandle = null;
+let ambientLeavesEmitter = null;
 const disposeHooks = new Set();
 const initHooks = new Set();
 

@@ -71,6 +71,7 @@ export function buildMoveEntry(moveName) {
         currentPP: data.pp,
         power: data.power,
         accuracy: data.accuracy,
-        priority: data.priority ?? 0
+        priority: data.priority ?? 0,
+        statusEffect: data.statusEffect ? { ...data.statusEffect } : null
     };
 }

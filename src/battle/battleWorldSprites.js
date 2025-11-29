@@ -333,3 +333,13 @@ export function updateWorldPokemonSpriteTransforms({ playerEntity, opponentEntit
 export function clearWorldPokemonSprites() {
     disposeAllSprites();
 }
+
+export function getBattleSpriteMesh(side) {
+    if (side === 'player') {
+        return spriteEntries.player?.mesh ?? null;
+    }
+    if (side === 'opponent') {
+        return spriteEntries.opponent?.mesh ?? null;
+    }
+    return null;
+}

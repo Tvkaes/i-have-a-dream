@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ataques Pokémon 3D</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+        }
+        button {
+            display: block;
+            width: 200px;
+            margin: 8px 0;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        #attack-name {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.8);
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="controls">
+        <h2 style="margin-top: 0;">Ataques Pokémon</h2>
+        <button onclick="attack('razorLeaf')">🍃 Razor Leaf</button>
+        <button onclick="attack('tackle')">💥 Tackle</button>
+        <button onclick="attack('poisonPowder')">☠️ Poison Powder</button>
+        <button onclick="attack('synthesis')">🌻 Synthesis</button>
+        <button onclick="attack('waterGun')">💧 Water Gun</button>
+        <button onclick="attack('bite')">🦷 Bite</button>
+        <button onclick="attack('withdraw')">🛡️ Withdraw</button>
+        <button onclick="attack('quickAttack')">⚡ Quick Attack</button>
+        <button onclick="attack('focusEnergy')">🎯 Focus Energy</button>
+        <button onclick="attack('thunderShock')">⚡ Thunder Shock</button>
+    </div>
+    <div id="attack-name"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, attacker, target;
+        let attackInProgress = false;
+
+        function init() {
+            scene = new THREE.Scene();
+            
+            // Fondo con degradado realista
+            const skyColor = new THREE.Color(0x87ceeb);
+            const horizonColor = new THREE.Color(0xe0f6ff);
+            scene.background = skyColor;
+            scene.fog = new THREE.Fog(horizonColor, 10, 50);
+            
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 3, 8);
+            camera.lookAt(0, 1, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xfff4e6, 1.2);
+            directionalLight.position.set(5, 10, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 50;
+            scene.add(directionalLight);
+
+            // Luz de relleno
+            const fillLight = new THREE.DirectionalLight(0x6ba3ff, 0.3);
+            fillLight.position.set(-5, 5, -5);
+            scene.add(fillLight);
+
+            // Suelo con textura de césped realista
+            const groundGeometry = new THREE.PlaneGeometry(20, 20, 50, 50);
+            const vertices = groundGeometry.attributes.position.array;
+            for (let i = 0; i < vertices.length; i += 3) {
+                vertices[i + 2] = Math.random() * 0.1;
+            }
+            groundGeometry.attributes.position.needsUpdate = true;
+            groundGeometry.computeVertexNormals();
+            
+            const groundMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x3a5a2a,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Pokémon atacante (esfera con textura orgánica)
+            const attackerGeometry = new THREE.SphereGeometry(0.8, 32, 32);
+            const attackerMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xff4444,
+                roughness: 0.4,
+                metalness: 0.2,
+                emissive: 0x330000,
+                emissiveIntensity: 0.2
+            });
+            attacker = new THREE.Mesh(attackerGeometry, attackerMaterial);
+            attacker.position.set(-3, 1, 0);
+            attacker.castShadow = true;
+            scene.add(attacker);
+
+            // Pokémon objetivo con textura detallada
+            const targetGeometry = new THREE.BoxGeometry(1, 1.5, 1);
+            const targetMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x2a9d8f,
+                roughness: 0.5,
+                metalness: 0.3,
+                emissive: 0x001a17,
+                emissiveIntensity: 0.1
+            });
+            target = new THREE.Mesh(targetGeometry, targetMaterial);
+            target.position.set(3, 0.75, 0);
+            target.castShadow = true;
+            target.receiveShadow = true;
+            scene.add(target);
+
+            // Añadir partículas ambientales
+            addAmbientParticles();
+
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+
+        function addAmbientParticles() {
+            const particlesGeometry = new THREE.BufferGeometry();
+            const particlesCount = 100;
+            const positions = new Float32Array(particlesCount * 3);
+
+            for (let i = 0; i < particlesCount * 3; i += 3) {
+                positions[i] = (Math.random() - 0.5) * 20;
+                positions[i + 1] = Math.random() * 5;
+                positions[i + 2] = (Math.random() - 0.5) * 20;
+            }
+
+            particlesGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const particlesMaterial = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 0.05,
+                transparent: true,
+                opacity: 0.3,
+                blending: THREE.AdditiveBlending
+            });
+
+            const particles = new THREE.Points(particlesGeometry, particlesMaterial);
+            scene.add(particles);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function showAttackName(name) {
+            const nameDiv = document.getElementById('attack-name');
+            nameDiv.textContent = name;
+            nameDiv.style.opacity = '1';
+            setTimeout(() => {
+                nameDiv.style.opacity = '0';
+            }, 1500);
+        }
+
+        function attack(attackType) {
+            if (attackInProgress) return;
+            attackInProgress = true;
+
+            switch(attackType) {
+                case 'razorLeaf':
+                    razorLeafAttack();
+                    break;
+                case 'tackle':
+                    tackleAttack();
+                    break;
+                case 'poisonPowder':
+                    poisonPowderAttack();
+                    break;
+                case 'synthesis':
+                    synthesisAttack();
+                    break;
+                case 'waterGun':
+                    waterGunAttack();
+                    break;
+                case 'bite':
+                    biteAttack();
+                    break;
+                case 'withdraw':
+                    withdrawAttack();
+                    break;
+                case 'quickAttack':
+                    quickAttackAnimation();
+                    break;
+                case 'focusEnergy':
+                    focusEnergyAttack();
+                    break;
+                case 'thunderShock':
+                    thunderShockAttack();
+                    break;
+            }
+        }
+
+        function razorLeafAttack() {
+            showAttackName('RAZOR LEAF');
+            const leaves = [];
+            for (let i = 0; i < 20; i++) {
+                // Hoja más realista con forma de elipse aplastada
+                const leafShape = new THREE.Shape();
+                leafShape.moveTo(0, 0);
+                leafShape.quadraticCurveTo(0.15, 0.05, 0.2, 0);
+                leafShape.quadraticCurveTo(0.15, -0.05, 0, 0);
+                
+                const extrudeSettings = { depth: 0.01, bevelEnabled: false };
+                const leafGeometry = new THREE.ExtrudeGeometry(leafShape, extrudeSettings);
+                
+                const leafMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0x2d5016,
+                    roughness: 0.6,
+                    metalness: 0.1,
+                    emissive: 0x1a3010,
+                    emissiveIntensity: 0.2,
+                    side: THREE.DoubleSide
+                });
+                const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
+                leaf.position.copy(attacker.position);
+                leaf.rotation.z = Math.PI / 2;
+                leaf.castShadow = true;
+                
+                // Añadir brillo a las hojas
+                const edgeGlow = new THREE.Mesh(
+                    leafGeometry,
+                    new THREE.MeshBasicMaterial({ 
+                        color: 0x90ee90,
+                        transparent: true,
+                        opacity: 0.3,
+                        side: THREE.DoubleSide
+                    })
+                );
+                edgeGlow.scale.set(1.1, 1.1, 1.1);
+                leaf.add(edgeGlow);
+                
+                scene.add(leaf);
+                leaves.push({
+                    mesh: leaf,
+                    velocity: new THREE.Vector3(
+                        0.15 + Math.random() * 0.1,
+                        Math.random() * 0.05 - 0.025,
+                        Math.random() * 0.1 - 0.05
+                    ),
+                    spin: Math.random() * 0.4,
+                    wobble: Math.random() * Math.PI * 2
+                });
+            }
+
+            let time = 0;
+            const leafInterval = setInterval(() => {
+                time++;
+                leaves.forEach(l => {
+                    l.mesh.position.add(l.velocity);
+                    l.mesh.rotation.x += l.spin;
+                    l.mesh.rotation.y += l.spin * 0.7;
+                    l.mesh.rotation.z += Math.sin(l.wobble + time * 0.1) * 0.05;
+                    
+                    // Efecto de estela
+                    if (time % 3 === 0) {
+                        const trail = l.mesh.clone();
+                        trail.material = trail.material.clone();
+                        trail.material.transparent = true;
+                        trail.material.opacity = 0.3;
+                        scene.add(trail);
+                        setTimeout(() => scene.remove(trail), 200);
+                    }
+                });
+
+                if (time > 60) {
+                    clearInterval(leafInterval);
+                    leaves.forEach(l => scene.remove(l.mesh));
+                    attackInProgress = false;
+                }
+            }, 16);
+        }
+
+        function tackleAttack() {
+            showAttackName('TACKLE');
+            const startPos = attacker.position.clone();
+            let time = 0;
+            const tackleInterval = setInterval(() => {
+                time++;
+                if (time < 20) {
+                    attacker.position.x += 0.3;
+                } else if (time === 20) {
+                    target.position.x += 0.5;
+                    target.rotation.z = 0.3;
+                } else if (time < 40) {
+                    attacker.position.x -= 0.3;
+                    target.position.x -= 0.025;
+                    target.rotation.z -= 0.015;
+                } else {
+                    clearInterval(tackleInterval);
+                    attacker.position.copy(startPos);
+                    target.rotation.z = 0;
+                    attackInProgress = false;
+                }
+            }, 16);
+        }
+
+        function poisonPowderAttack() {
+            showAttackName('POISON POWDER');
+            const particles = [];
+            for (let i = 0; i < 50; i++) {
+                const particleGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+                const particleMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0x9b59b6,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+                particle.position.copy(attacker.position);
+                scene.add(particle);
+                particles.push({
+                    mesh: particle,
+                    velocity: new THREE.Vector3(
+                        Math.random() * 0.1,
+                        Math.random() * 0.1 - 0.05,
+                        Math.random() * 0.1 - 0.05
+                    )
+                });
+            }
+
+            let time = 0;
+            const poisonInterval = setInterval(() => {
+                time++;
+                particles.forEach(p => {
+                    p.mesh.position.add(p.velocity);
+                    p.mesh.material.opacity -= 0.01;
+                });
+
+                if (time > 100) {
+                    clearInterval(poisonInterval);
+                    particles.forEach(p => scene.remove(p.mesh));
+                    attackInProgress = false;
+                }
+            }, 16);
+        }
+
+        function synthesisAttack() {
+            showAttackName('SYNTHESIS');
+            const sparkles = [];
+            for (let i = 0; i < 30; i++) {
+                const sparkleGeometry = new THREE.SphereGeometry(0.08, 8, 8);
+                const sparkleMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0xffeb3b,
+                    emissive: 0xffeb3b,
+                    emissiveIntensity: 1
+                });
+                const sparkle = new THREE.Mesh(sparkleGeometry, sparkleMaterial);
+                const angle = (i / 30) * Math.PI * 2;
+                sparkle.position.set(
+                    attacker.position.x + Math.cos(angle) * 2,
+                    attacker.position.y + Math.random() * 2,
+                    attacker.position.z + Math.sin(angle) * 2
+                );
+                scene.add(sparkle);
+                sparkles.push({ mesh: sparkle, angle: angle, radius: 2 });
+            }
+
+            let time = 0;
+            const synthesisInterval = setInterval(() => {
+                time++;
+                sparkles.forEach(s => {
+                    s.radius -= 0.03;
+                    s.angle += 0.05;
+                    s.mesh.position.x = attacker.position.x + Math.cos(s.angle) * s.radius;
+                    s.mesh.position.z = attacker.position.z + Math.sin(s.angle) * s.radius;
+                });
+
+                if (time > 60) {
+                    clearInterval(synthesisInterval);
+                    sparkles.forEach(s => scene.remove(s.mesh));
+                    attackInProgress = false;
+                }
+            }, 16);
+        }
+
+        function waterGunAttack() {
+            showAttackName('WATER GUN');
+            const waterDrops = [];
+            const waterStream = [];
+            let spawnTime = 0;
+            
+            const waterInterval = setInterval(() => {
+                spawnTime++;
+                
+                if (spawnTime < 40 && spawnTime % 1 === 0) {
+                    // Gotas principales con efecto de agua realista
+                    const dropGeometry = new THREE.SphereGeometry(0.12, 16, 16);
+                    const dropMaterial = new THREE.MeshPhysicalMaterial({ 
+                        color: 0x1e90ff,
+                        transparent: true,
+                        opacity: 0.85,
+                        roughness: 0.1,
+                        metalness: 0.1,
+                        transmission: 0.6,
+                        thickness: 0.5,
+                        envMapIntensity: 1
+                    });
+                    const drop = new THREE.Mesh(dropGeometry, dropMaterial);
+                    drop.position.copy(attacker.position);
+                    drop.castShadow = true;
+                    scene.add(drop);
+                    
+                    // Añadir brillo interior
+                    const innerGlow = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.08, 8, 8),
+                        new THREE.MeshBasicMaterial({ 
+                            color: 0x87ceeb,
+                            transparent: true,
+                            opacity: 0.4
+                        })
+                    );
+                    drop.add(innerGlow);
+                    
+                    waterDrops.push({ 
+                        mesh: drop, 
+                        velocity: 0.28 + Math.random() * 0.05,
+                        wobble: Math.random() * Math.PI * 2
+                    });
+                    
+                    // Partículas de salpicadura
+                    if (spawnTime % 3 === 0) {
+                        for (let i = 0; i < 5; i++) {
+                            const splashGeometry = new THREE.SphereGeometry(0.04, 8, 8);
+                            const splashMaterial = new THREE.MeshPhysicalMaterial({ 
+                                color: 0x4da6ff,
+                                transparent: true,
+                                opacity: 0.6,
+                                transmission: 0.3
+                            });
+                            const splash = new THREE.Mesh(splashGeometry, splashMaterial);
+                            splash.position.copy(attacker.position);
+                            scene.add(splash);
+                            waterStream.push({
+                                mesh: splash,
+                                velocity: new THREE.Vector3(
+                                    0.2 + Math.random() * 0.1,
+                                    Math.random() * 0.1 - 0.05,
+                                    Math.random() * 0.1 - 0.05
+                                )
+                            });
+                        }
+                    }
+                }
+
+                waterDrops.forEach(d => {
+                    d.mesh.position.x += d.velocity;
+                    d.mesh.position.y += Math.sin(d.wobble + spawnTime * 0.2) * 0.02;
+                    d.mesh.rotation.z += 0.1;
+                    
+                    if (d.mesh.position.x > target.position.x - 0.5) {
+                        d.mesh.material.opacity -= 0.03;
+                        d.mesh.scale.multiplyScalar(1.05);
+                        
+                        // Efecto de salpicadura al impactar
+                        if (d.mesh.material.opacity < 0.5 && Math.random() > 0.7) {
+                            for (let i = 0; i < 3; i++) {
+                                const splashParticle = new THREE.Mesh(
+                                    new THREE.SphereGeometry(0.03, 6, 6),
+                                    new THREE.MeshBasicMaterial({ 
+                                        color: 0x87ceeb,
+                                        transparent: true,
+                                        opacity: 0.5
+                                    })
+                                );
+                                splashParticle.position.copy(d.mesh.position);
+                                scene.add(splashParticle);
+                                setTimeout(() => scene.remove(splashParticle), 300);
+                            }
+                        }
+                    }
+                });
+                
+                waterStream.forEach(s => {
+                    s.mesh.position.add(s.velocity);
+                    s.mesh.material.opacity -= 0.02;
+                });
+
+                if (spawnTime > 90) {
+                    clearInterval(waterInterval);
+                    waterDrops.forEach(d => scene.remove(d.mesh));
+                    waterStream.forEach(s => scene.remove(s.mesh));
+                    attackInProgress = false;
+                }
+            }, 16);
+        }
+
+        function biteAttack() {
+            showAttackName('BITE');
+            const jawGeometry = new THREE.TorusGeometry(0.5, 0.15, 8, 20, Math.PI);
+            const jawMaterial = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
+            const upperJaw = new THREE.Mesh(jawGeometry, jawMaterial);
+            const lowerJaw = new THREE.Mesh(jawGeometry, jawMaterial);
+            
+            upperJaw.position.copy(target.position);
+            upperJaw.position.y += 1;
+            lowerJaw.position.copy(target.position);
+            lowerJaw.position.y += 0.5;
+            lowerJaw.rotation.x = Math.PI;
+            
+            scene.add(upperJaw);
+            scene.add(lowerJaw);
+
+            let time = 0;
+            const biteInterval = setInterval(() => {
+                time++;
+                if (time < 15) {
+                    upperJaw.position.y -= 0.04;
+                    lowerJaw.position.y += 0.04;
+                } else if (time < 30) {
+                    upperJaw.position.y += 0.04;
+                    lowerJaw.position.y -= 0.04;
+                } else {
+                    clearInterval(biteInterval);
+                    scene.remove(upperJaw);
+                    scene.remove(lowerJaw);
+                    attackInProgress = false;
+                }
+            }, 16);
+        }
+
+        function withdrawAttack() {
+            showAttackName('WITHDRAW');
+            const shellGeometry = new THREE.SphereGeometry(1.2, 32, 32);
+            const shellMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x8b4513,
+                transparent: true,
+                opacity: 0.5
+            });
+            const shell = new THREE.Mesh(shellGeometry, shellMaterial);
+            shell.position.copy(attacker.position);
+            scene.add(shell);
+
+            let time = 0;
+            const originalScale = attacker.scale.clone();
+            const withdrawInterval = setInterval(() => {
+                time++;
+                if (time < 20) {
+                    attacker.scale.multiplyScalar(0.97);
+                    shell.material.opacity = 0.5 + time * 0.025;
+                } else if (time < 60) {
+                    shell.rotation.y += 0.1;
+                } else if (time < 80) {
+                    attacker.scale.lerp(originalScale, 0.1);
+                    shell.material.opacity -= 0.025;
+                } else {
+                    clearInterval(withdrawInterval);
+                    attacker.scale.copy(originalScale);
+                    scene.remove(shell);
+                    attackInProgress = false;
+                }
+            }, 16);
+        }
+
+        function quickAttackAnimation() {
+            showAttackName('QUICK ATTACK');
+            const startPos = attacker.position.clone();
+            const afterImages = [];
+            
+            for (let i = 0; i < 5; i++) {
+                const imageGeometry = new THREE.SphereGeometry(0.8, 16, 16);
+                const imageMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0xff6b6b,
+                    transparent: true,
+                    opacity: 0.3
+                });
+                const image = new THREE.Mesh(imageGeometry, imageMaterial);
+                scene.add(image);
+                afterImages.push(image);
+            }
+
+            let time = 0;
+            const quickInterval = setInterval(() => {
+                time++;
+                if (time < 10) {
+                    attacker.position.x += 0.6;
+                    afterImages.forEach((img, idx) => {
+                        img.position.x = attacker.position.x - (idx + 1) * 0.5;
+                        img.position.y = attacker.position.y;
+                        img.position.z = attacker.position.z;
+                    });
+                } else if (time === 10) {
+                    target.position.x += 0.3;
+                } else if (time < 30) {
+                    attacker.position.lerp(startPos, 0.1);
+                    target.position.x -= 0.01;
+                    afterImages.forEach(img => img.material.opacity -= 0.015);
+                } else {
+                    clearInterval(quickInterval);
+                    afterImages.forEach(img => scene.remove(img));
+                    attacker.position.copy(startPos);
+                    attackInProgress = false;
+                }
+            }, 16);
+        }
+
+        function focusEnergyAttack() {
+            showAttackName('FOCUS ENERGY');
+            const energyRings = [];
+            for (let i = 0; i < 3; i++) {
+                const ringGeometry = new THREE.TorusGeometry(1 + i * 0.5, 0.05, 8, 32);
+                const ringMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0xff0000,
+                    emissive: 0xff0000,
+                    emissiveIntensity: 1
+                });
+                const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+                ring.position.copy(attacker.position);
+                ring.rotation.x = Math.PI / 2;
+                scene.add(ring);
+                energyRings.push({ mesh: ring, initialY: attacker.position.y });
+            }
+
+            let time = 0;
+            const focusInterval = setInterval(() => {
+                time++;
+                energyRings.forEach((r, idx) => {
+                    r.mesh.position.y = r.initialY + Math.sin(time * 0.1 + idx) * 0.3;
+                    r.mesh.scale.x = 1 + Math.sin(time * 0.1) * 0.2;
+                    r.mesh.scale.y = 1 + Math.sin(time * 0.1) * 0.2;
+                });
+
+                if (time > 80) {
+                    clearInterval(focusInterval);
+                    energyRings.forEach(r => scene.remove(r.mesh));
+                    attackInProgress = false;
+                }
+            }, 16);
+        }
+
+        function thunderShockAttack() {
+            showAttackName('THUNDER SHOCK');
+            const bolts = [];
+            const electricParticles = [];
+            
+            // Crear rayos realistas con geometría compleja
+            for (let i = 0; i < 8; i++) {
+                const points = [];
+                let currentPos = attacker.position.clone();
+                const targetPos = target.position.clone();
+                targetPos.y += Math.random() * 0.5;
+                
+                const segments = 15;
+                for (let j = 0; j < segments; j++) {
+                    const progress = j / segments;
+                    currentPos.x = THREE.MathUtils.lerp(attacker.position.x, targetPos.x, progress);
+                    currentPos.y = THREE.MathUtils.lerp(attacker.position.y, targetPos.y, progress) + 
+                                   Math.sin(progress * Math.PI * 3) * 0.3 + 
+                                   (Math.random() - 0.5) * 0.4;
+                    currentPos.z += (Math.random() - 0.5) * 0.3;
+                    points.push(currentPos.clone());
+                }
+                
+                const boltGeometry = new THREE.BufferGeometry().setFromPoints(points);
+                
+                // Rayo principal brillante
+                const mainBoltMaterial = new THREE.LineBasicMaterial({ 
+                    color: 0xffff00,
+                    linewidth: 2,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                const mainBolt = new THREE.Line(boltGeometry, mainBoltMaterial);
+                scene.add(mainBolt);
+                
+                // Resplandor del rayo
+                const glowBoltMaterial = new THREE.LineBasicMaterial({ 
+                    color: 0xffffff,
+                    linewidth: 4,
+                    transparent: true,
+                    opacity: 0.4
+                });
+                const glowBolt = new THREE.Line(boltGeometry, glowBoltMaterial);
+                scene.add(glowBolt);
+                
+                bolts.push({ main: mainBolt, glow: glowBolt, offset: i * 0.1 });
+            }
+            
+            // Partículas eléctricas
+            for (let i = 0; i < 30; i++) {
+                const particleGeometry = new THREE.SphereGeometry(0.05, 6, 6);
+                const particleMaterial = new THREE.MeshBasicMaterial({ 
+                    color: 0xffff00,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+                const angle = (i / 30) * Math.PI * 2;
+                particle.position.copy(target.position);
+                particle.position.x += Math.cos(angle) * 0.5;
+                particle.position.z += Math.sin(angle) * 0.5;
+                scene.add(particle);
+                electricParticles.push({ 
+                    mesh: particle, 
+                    angle: angle,
+                    speed: 0.1 + Math.random() * 0.1
+                });
+            }
+
+            let time = 0;
+            const thunderInterval = setInterval(() => {
+                time++;
+                
+                // Animación de rayos parpadeantes
+                bolts.forEach((bolt, idx) => {
+                    const flicker = Math.sin(time * 0.5 + bolt.offset) > 0.3;
+                    bolt.main.visible = flicker;
+                    bolt.glow.visible = flicker;
+                    
+                    if (flicker && Math.random() > 0.7) {
+                        // Crear ramificaciones del rayo
+                        const branchPoints = [];
+                        const startIdx = Math.floor(Math.random() * 10);
+                        const startPoint = bolt.main.geometry.attributes.position.array;
+                        const sx = startPoint[startIdx * 3];
+                        const sy = startPoint[startIdx * 3 + 1];
+                        const sz = startPoint[startIdx * 3 + 2];
+                        
+                        for (let j = 0; j < 5; j++) {
+                            branchPoints.push(new THREE.Vector3(
+                                sx + (Math.random() - 0.5) * 0.5,
+                                sy + (Math.random() - 0.5) * 0.5,
+                                sz + (Math.random() - 0.5) * 0.5
+                            ));
+                        }
+                        
+                        const branchGeometry = new THREE.BufferGeometry().setFromPoints(branchPoints);
+                        const branch = new THREE.Line(branchGeometry, mainBoltMaterial.clone());
+                        scene.add(branch);
+                        setTimeout(() => scene.remove(branch), 50);
+                    }
+                });
+                
+                // Animación de partículas eléctricas
+                electricParticles.forEach(p => {
+                    p.angle += p.speed;
+                    p.mesh.position.x = target.position.x + Math.cos(p.angle) * 0.5;
+                    p.mesh.position.z = target.position.z + Math.sin(p.angle) * 0.5;
+                    p.mesh.position.y = target.position.y + Math.sin(time * 0.2 + p.angle) * 0.3;
+                    p.mesh.scale.setScalar(1 + Math.sin(time * 0.3) * 0.3);
+                });
+
+                if (time === 15 || time === 30) {
+                    target.position.x += 0.15;
+                    target.rotation.z += 0.2;
+                    
+                    // Flash de impacto
+                    const flash = new THREE.PointLight(0xffff00, 2, 5);
+                    flash.position.copy(target.position);
+                    scene.add(flash);
+                    setTimeout(() => scene.remove(flash), 100);
+                }
+
+                if (time > 20 && time < 50) {
+                    target.position.x -= 0.003;
+                    target.rotation.z -= 0.004;
+                }
+
+                if (time > 50) {
+                    clearInterval(thunderInterval);
+                    bolts.forEach(bolt => {
+                        scene.remove(bolt.main);
+                        scene.remove(bolt.glow);
+                    });
+                    electricParticles.forEach(p => scene.remove(p.mesh));
+                    target.rotation.z = 0;
+                    attackInProgress = false;
+                }
+            }, 16);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
